@@ -6,6 +6,8 @@ import { cafe, readSaved, saveLocal, createPreviewPlay } from './config';
 import FluidBackdrop from './FluidBackdrop';
 import CafeReviews from './CafeReviews';
 import CoffeeObjects from './CoffeeObjects';
+import WinCelebration from './WinCelebration';
+import PaperToss from './PaperToss';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -181,6 +183,7 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [reviewOrigin, setReviewOrigin] = useState('result');
   const [winCelebration, setWinCelebration] = useState(0);
+  const [showWinCelebration, setShowWinCelebration] = useState(false);
   const reduce = useReducedMotion();
   const tone = useTone();
   const titleRef = useRef(null);
@@ -196,14 +199,14 @@ export default function App() {
 
   function reveal() {
     const next = { ...play, revealed: true }; setPlay(next); saveLocal({ play: next });
-    if (next.won) setWinCelebration(previous => previous + 1);
+    if (next.won) { setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
     if (sound) tone(next.won);
     setMode('result');
   }
   function restart(won) {
     setPlay(createPreviewPlay(won)); setMode('scratch'); setSavedPass(false); setMessage('');
   }
-  function openReview(origin) { setReviewOrigin(origin); setMode('review'); }
+  function openReview(origin) { setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
@@ -222,12 +225,12 @@ export default function App() {
           </motion.section>}
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
             {play.won && <Confetti/>}
-            <h1 ref={titleRef} tabIndex={-1}>{play.won ? <>Hoy invita<br/><em>la suerte.</em></> : <>Esta vez<br/><em>no tocó.</em></>}</h1>
-            <p className="screen-description">{play.won ? '¡Ganaste un café de cortesía!' : 'Tu tarjeta no tenía premio esta vez.'}<br/>{play.won ? 'Guarda este pequeño golpe de suerte.' : 'Gracias por compartir este momento con Anvid.'}</p>
+            {play.won ? <><h1 ref={titleRef} tabIndex={-1}>Hoy invita<br/><em>la suerte.</em></h1><p className="screen-description">¡Ganaste un café de cortesía!<br/>Guarda este pequeño golpe de suerte.</p></> : <div className="loss-coupon"><span className="loss-coupon-brand">anvid <small>coffe</small></span><h1 ref={titleRef} tabIndex={-1}>Hoy no tocó.<br/><em>Lo bonito sigue.</em></h1><p>Esta tarjeta no tenía premio.<br/>Ojalá este café te regale una pausa bonita.<br/>Que hoy encuentres una razón para sonreír.</p><span className="loss-coupon-bottom">UN MOMENTO BONITO TAMBIÉN CUENTA.</span></div>}
             {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>PASE DE DEMOSTRACIÓN · SIN VALOR DE CANJE</small></span></div><span className="mini-prize-code">{play.code}</span><button className="text-button" onClick={() => { savePass(play); setSavedPass(true); }}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {savedPass ? 'Pase guardado · descargar otra vez' : 'Guardar mi pase'}</button></div>}
             <div className="result-review-prompt"><Action onClick={() => openReview('result')}>Dejar una reseña de mi café</Action></div>
             <span className="result-footnote">Tu opinión es sobre el café que probaste.</span>
           </motion.section>}
+          {mode === 'paper-toss' && <motion.section key="paper-toss" initial={enter} animate={visible} exit={{opacity:0}} transition={{duration:.2,ease}} className="game-face paper-toss-face"><PaperToss titleRef={titleRef} onComplete={() => setMode('review')}/></motion.section>}
           {mode === 'review' && <motion.section key="review" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face coffee-review-face">
             <button className="back-to-result" onClick={() => setMode(reviewOrigin)}><ArrowRight size={14}/> {reviewOrigin === 'reviews' ? 'Reseñas del café' : 'Mi resultado'}</button>
             <h1 ref={titleRef} tabIndex={-1}>Hablemos de<br/><em>tu café.</em></h1>
@@ -240,6 +243,7 @@ export default function App() {
       </motion.div>
     </main>
     <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
+    {showWinCelebration && <WinCelebration resultTitleRef={titleRef} onClose={() => setShowWinCelebration(false)}/>}
   </div></MotionConfig>;
 }
 

@@ -14,6 +14,9 @@ Verified in the in-app browser on 20 October 2026.
 - The backdrop WebGL canvas has a bounded resolution, 30 fps cap, hidden-tab suspension, reduced-motion static render and CSS fallback. The image animation is CSS transform based.
 - The separate 850px transparent cup and 160px transparent bean assets loaded successfully. Twelve bean elements were present. Continuous cup/bean CSS animations were verified.
 - A winning reveal was observed during rotation/scale-down and after the spring settled. The final cup transform was scale(0.76), translateY(16px); the result and review button remained visible.
+- The new winning dialog was exercised at 390 × 844: the branded cup appears, the lid opens, seven balloons rise and remain around the announcement, confetti bursts and party lights move. The prize button returns to the result.
+- A nonwinning result displays the warm paper coupon. Choosing the review visibly shrinks and folds it, cross-fades into the transparent photographic ball and launches it toward the wastebasket. The coffee review form opens automatically after the 2.2-second sequence. “Saltar animación y escribir” was also verified to open the form immediately.
+- The production Vite build passed with the celebration and paper-toss components.
 - The initial development-only createRoot warning was fixed by separating the React app from the entry module. Those historical logs predate the fix.
 
 Not tested on physical phone hardware. Shared review storage, real purchase tokens and one-use prize redemption are not implemented in this demonstration.
