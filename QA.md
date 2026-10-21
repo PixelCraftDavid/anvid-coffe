@@ -2,7 +2,7 @@
 
 ## Firebase and mobile celebration — 21 October 2026
 
-The production target has moved to the owner's Vercel project, https://anvid-coffe.vercel.app/. Firebase project `anvid-coffe` uses Spark, Firestore Standard `(default)`, nam5, production rules. The server credential is configured by the owner only in Vercel; no real key is present in this repository. Live production connection is pending deployment verification.
+The production target has moved to the owner's Vercel project, https://anvid-coffe.vercel.app/. Firebase project `anvid-coffe` uses Spark, Firestore Standard `(default)`, nam5, production rules. The server credential is configured by the owner only in Vercel; no real key is present in this repository. After publishing source commit 723bfcdd6047aea0236b84e03c7d518cbe664b8c, the production state API returned the correct UTC−6 day/reset with coupon=null and review=null. The production review API returned an honest empty list, count 0 and average 0. These read-only checks prove connectivity without consuming the daily prize or creating fabricated public reviews. Production writes are covered by emulator integration, not by a real customer draw.
 
 - Production Vite build passed with the new API client; no `firebase-admin`, `private_key` or `FIREBASE_SERVICE_ACCOUNT_JSON` is included in frontend assets.
 - Eight Node tests passed, with no skips, against the official Firestore emulator 1.19.8. Twenty concurrent distinct participants, all selected as winning candidates, persisted exactly one winning coupon. Repeating a participant returned the original code/result; the next UTC−6 day allowed a new winner, and losing did not consume its slot.
