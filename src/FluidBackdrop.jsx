@@ -37,7 +37,7 @@ export default function FluidBackdrop() {
         vec3 sage=vec3(.38,.41,.23);
         vec3 colour=mix(dark,olive,smoothstep(.2,.73,flow));
         colour=mix(colour,sage,smoothstep(.56,.86,flow)*.65);
-        vec2 centre=vec2(.64+.025*sin(t),.52);
+        vec2 centre=vec2(.5+.02*sin(t),.6);
         float vignette=1.-smoothstep(.2,.83,length((uv-centre)*vec2(1.18,.9)));
         colour*=mix(.08,1.,vignette);
         colour+=(hash(gl_FragCoord.xy)-.5)*.022;
