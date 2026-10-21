@@ -1,7 +1,8 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
 
-export default defineConfig(({ mode }) => ({ plugins: [react(), {
+export default defineConfig(({ mode }) => ({ build:{rollupOptions:{input:{main:fileURLToPath(new URL('./index.html',import.meta.url)),celebration:fileURLToPath(new URL('./prueba-premio.html',import.meta.url))}}}, plugins: [react(), {
   name: 'anvid-local-api',
   apply: 'serve',
   configureServer(server) {

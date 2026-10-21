@@ -14,7 +14,7 @@ function Balloon({ index, colour }) {
   return <svg viewBox="0 0 76 150" fill="none" aria-hidden="true"><defs><radialGradient id={id} cx=".3" cy=".25" r=".8"><stop stopColor="#fff8e8"/><stop offset=".2" stopColor={colour}/><stop offset=".78" stopColor={colour}/><stop offset="1" stopColor="#394d36"/></radialGradient></defs><ellipse cx="38" cy="40" rx="31" ry="38" fill={`url(#${id})`}/><path d="m38 77-4 7h8l-4-7Z" fill={colour}/><ellipse cx="25" cy="23" rx="7" ry="13" transform="rotate(27 25 23)" fill="#fff" opacity=".22"/><path d="M38 84c-17 17 15 29 1 43-6 6-6 12-2 21" stroke="#e6edd0" strokeOpacity=".65" strokeWidth=".7"/></svg>;
 }
 
-export default function WinCelebration({ onClose, resultTitleRef, wonAt, sound, onToggleSound }) {
+export default function WinCelebration({ onClose, resultTitleRef, wonAt, sound, onToggleSound, preview=false }) {
   const dialogRef = useRef(null);
   const continueRef = useRef(null);
   const reduce = useReducedMotion();
@@ -69,8 +69,8 @@ export default function WinCelebration({ onClose, resultTitleRef, wonAt, sound, 
       <div className="win-theatre-glass" aria-hidden="true"/>
       <div className="party-lights" aria-hidden="true"><i/><i/><i/><i/></div>
       <button className="celebration-sound" onClick={onToggleSound} aria-label={sound?'Silenciar celebración':'Activar sonido de la celebración'} aria-pressed={sound}>{sound?<Volume2 size={16} strokeWidth={1.5}/>:<VolumeX size={16} strokeWidth={1.5}/>}</button>
-      <button className="celebration-close" onClick={close} aria-label="Cerrar celebración y ver mi premio"><X size={18} strokeWidth={1.5}/></button>
-      <header className="win-theatre-heading"><h2 id="celebration-title">¡Ganaste<br/><em>un café!</em></h2><p id="celebration-description">Hoy invitamos nosotros.<br/>Tú disfruta este pequeño golpe de suerte.</p></header>
+      <button className="celebration-close" onClick={close} aria-label={preview?'Cerrar prueba de celebración':'Cerrar celebración y ver mi premio'}><X size={18} strokeWidth={1.5}/></button>
+      <header className="win-theatre-heading"><h2 id="celebration-title">¡Ganaste<br/><em>un café!</em></h2><p id="celebration-description">{preview?<>Prueba de la celebración.<br/>El premio del día sigue intacto.</>:<>Hoy invitamos nosotros.<br/>Tú disfruta este pequeño golpe de suerte.</>}</p></header>
       <div className="celebration-stage" aria-hidden="true">
         {assetsReady && !reduce && <div className="balloon-launch">{balloonColours.map((colour, i) => <motion.div className="party-balloon" key={colour} initial={{ opacity: 0, transform: 'translate(calc(-50% + 0px), 45px) rotate(0deg) scale(.5)' }} animate={{ opacity: 1, transform: `translate(calc(-50% + ${balloonTargets[i][0] * (compact ? .7 : 1)}px), ${balloonTargets[i][1]}px) rotate(${(i - 3) * 5}deg) scale(1)` }} transition={{ duration: 2.8 + i * .1, delay: lead+(WIN.balloons+i*WIN.balloonStagger)/1000, ease, opacity: { duration: .5, delay: lead+(WIN.balloons+i*WIN.balloonStagger)/1000 } }}><Balloon index={i} colour={colour}/></motion.div>)}</div>}
         {assetsReady && !reduce && <div className="cup-confetti">{Array.from({length:compact?28:52},(_,i) => {
@@ -85,7 +85,7 @@ export default function WinCelebration({ onClose, resultTitleRef, wonAt, sound, 
         {!assetsReady && <span className="celebration-loading">Tu café está llegando…</span>}
         {cupFailed && <span className="celebration-loading">Un café para alegrarte el día.</span>}
       </div>
-      <footer className="win-theatre-footer"><PrizeTimestamp value={wonAt}/><button ref={continueRef} className="action" onClick={close}><span>Ver mi premio</span><span className="action-arrow"><ArrowUpRight size={19}/></span></button><p>UN CAFÉ. UN PEQUEÑO GOLPE DE SUERTE.</p></footer>
+      <footer className="win-theatre-footer">{preview?<p className="celebration-test-notice">PRUEBA VISUAL · NO EMITE CUPONES</p>:<PrizeTimestamp value={wonAt}/>}<button ref={continueRef} className="action" onClick={close}><span>{preview?'Terminar prueba':'Ver mi premio'}</span><span className="action-arrow"><ArrowUpRight size={19}/></span></button><p>{preview?'ANIMACIÓN DE PRUEBA · SIN PREMIO REAL':'UN CAFÉ. UN PEQUEÑO GOLPE DE SUERTE.'}</p></footer>
     </div>
   </dialog>;
 }

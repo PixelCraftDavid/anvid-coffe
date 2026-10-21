@@ -36,6 +36,8 @@ Los diálogos gestionan el foco, los controles tienen alternativas por teclado y
 
 ## Validación
 
+Para comprobar la celebración en un teléfono sin sortear ni gastar premios, abrir `/prueba-premio.html` y pulsar “Probar animación”. Es una entrada HTML independiente que solo monta la animación: no importa el cliente de cupones/reseñas, no monta App y no hace solicitudes a Firebase o `/api/experience`. Permite repetir y activar/silenciar sonido. El diálogo indica que es una prueba y no ofrece cupón ni fecha de premio. La portada del juego no añade controles de demostración.
+
 `npm test` comprueba fecha UTC−6, estrellas/comentarios, firmas de cookie, protección de origen y errores sin configuración. Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, ejecuta además integración con Firestore: intentos concurrentes, idempotencia, renovación diaria, opiniones, promedio y paginación. No ejecuta sorteos reales en producción. Ver el registro de comprobaciones en `QA.md`.
 
 ## Diseño y recursos

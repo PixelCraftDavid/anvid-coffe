@@ -1,5 +1,9 @@
 # Verification
 
+## Phone celebration preview — 21 October 2026
+
+`/prueba-premio.html` is a separate Vite HTML/React entry. Its component mounts only the production WinCelebration and audio, never App or the business API. It has no coupon code, winning timestamp, download, database calls or forced-draw endpoint. A real click starts/unlocks the sound, close returns focus to the preview heading, and the “Repetir prueba” button mounts a fresh animation. Production game entry and prize logic are unchanged. Checked at 360×740 in Chromium: decoded cup/lid, clear preview labels, 44px controls, close/focus return and replay. The preview's audio preference is local to its React state and does not overwrite the customer's saved mute preference.
+
 ## Firebase and mobile celebration — 21 October 2026
 
 The production target has moved to the owner's Vercel project, https://anvid-coffe.vercel.app/. Firebase project `anvid-coffe` uses Spark, Firestore Standard `(default)`, nam5, production rules. The server credential is configured by the owner only in Vercel; no real key is present in this repository. After publishing source commit 723bfcdd6047aea0236b84e03c7d518cbe664b8c, the production state API returned the correct UTC−6 day/reset with coupon=null and review=null. The production review API returned an honest empty list, count 0 and average 0. These read-only checks prove connectivity without consuming the daily prize or creating fabricated public reviews. Production writes are covered by emulator integration, not by a real customer draw.
