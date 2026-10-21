@@ -13,6 +13,7 @@ The generated build is in `dist/`.
 ## Current behavior
 
 - Canvas scratch interaction with pointer capture and touch support. Actual surface coverage determines reveal; there is also a keyboard-accessible reveal button.
+- With sound enabled, scratch gestures drive a dry, granular foil texture. Speed changes its level, playback rate and filtering; pressure, horizontal position and remaining foil make smaller adjustments. A stationary touch or hover stays silent. Audio-clock envelopes fade after movement stops, with explicit stops on release, cancel, lost capture, leaving the foil, blur, hiding the tab, muting and reveal. Resources are disposed between strokes; the keyboard reveal alternative never starts scratch audio.
 - Local preview lottery with a 35% illustrative win probability. Preview controls let the owner explore either outcome.
 - Local result persistence and a downloadable PNG demonstration pass.
 - One centred glass window: scratch, see win/no-win, then “Dejar una reseña de mi café”. A winning card adds a dismissible celebration above this flow.

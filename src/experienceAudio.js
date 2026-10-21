@@ -1,7 +1,8 @@
 import { PAPER_TOSS } from './paperTossTimeline.js';
 import { renderWinCelebrationAudio } from './winCelebrationAudio.js';
+import { renderScratchTexture, createScratchController } from './scratchAudio.js';
 
-let context, output, paperBuffer, winBuffer, reducedWinBuffer;
+let context, output, paperBuffer, winBuffer, reducedWinBuffer, scratchBuffer;
 let enabled = false;
 const active = new Set();
 
@@ -58,7 +59,7 @@ export function renderPaperTossAudio(sampleRate) {
 }
 
 function graph() {
-  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; winBuffer=null; reducedWinBuffer=null; }
+  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; winBuffer=null; reducedWinBuffer=null;scratchBuffer=null; }
   if (!context) {
     const AudioCtx=window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
@@ -87,6 +88,26 @@ function getWinBuffer(ctx,reducedMotion=false) {
   return buffer;
 }
 
+function getScratchBuffer(ctx) {
+  if(!scratchBuffer) {
+    const samples=renderScratchTexture(ctx.sampleRate);
+    scratchBuffer=ctx.createBuffer(1,samples.length,ctx.sampleRate);
+    scratchBuffer.copyToChannel(samples,0);
+  }
+  return scratchBuffer;
+}
+
+export function createScratchSound() {
+  const silent={move(){},stop(){},dispose(){}};
+  if(!enabled || !context) return silent;
+  try {
+    const controller=createScratchController(context,output,getScratchBuffer(context),()=>enabled);
+    const dispose=()=>{controller.dispose();active.delete(dispose);};
+    active.add(dispose);
+    return {move:controller.move,stop:controller.stop,dispose};
+  } catch {return silent;}
+}
+
 export function setExperienceSound(next) {
   enabled=next;
   try {
@@ -99,6 +120,7 @@ export function setExperienceSound(next) {
       void ctx.resume().catch(()=>{});
       getPaperBuffer(ctx);
       getWinBuffer(ctx);
+      getScratchBuffer(ctx);
     } else {
       for(const cancel of [...active]) cancel();
     }

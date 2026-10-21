@@ -8,7 +8,7 @@ import CafeReviews from './CafeReviews';
 import CoffeeObjects from './CoffeeObjects';
 import WinCelebration from './WinCelebration';
 import PaperToss from './PaperToss';
-import { setExperienceSound, resumeExperienceSound, playResultTone } from './experienceAudio';
+import { setExperienceSound, resumeExperienceSound, playResultTone, createScratchSound } from './experienceAudio';
 import PrizeTimestamp from './PrizeTimestamp.jsx';
 import { formatPrizeTimestamp } from './prizeDateTime.js';
 
@@ -27,10 +27,12 @@ function Action({ children, onClick, className = '', light = false, ...props }) 
   return <button onClick={onClick} className={`action ${light ? 'action-light' : ''} ${className}`} {...props}><span>{children}</span><span className="action-arrow"><ArrowUpRight size={20} strokeWidth={1.5}/></span></button>;
 }
 
-function ScratchSurface({ play, onReveal }) {
+function ScratchSurface({ play, onReveal, sound = false }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const previous = useRef(null);
+  const activePointer = useRef(null);
+  const scratchSound = useRef(null);
   const progressCells = useRef(new Set());
   const finished = useRef(false);
   const [progress, setProgress] = useState(0);
@@ -38,6 +40,19 @@ function ScratchSurface({ play, onReveal }) {
   const [ready, setReady] = useState(false);
   const callback = useRef(onReveal);
   callback.current = onReveal;
+
+  useEffect(()=>{
+    if(!sound) return;
+    const controller=createScratchSound();scratchSound.current=controller;
+    return ()=>{controller.dispose();if(scratchSound.current===controller)scratchSound.current=null;};
+  },[sound]);
+
+  useEffect(()=>{
+    const blur=()=>endStroke();
+    const visibility=()=>{if(document.hidden)endStroke();};
+    window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);
+    return ()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};
+  },[]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -60,24 +75,35 @@ function ScratchSurface({ play, onReveal }) {
 
   const finish = () => {
     if (finished.current) return;
-    finished.current = true; drawing.current = false; setTouching(false);
+    finished.current = true; endStroke();
     setProgress(100); callback.current();
   };
+  function pauseStroke() {scratchSound.current?.stop();previous.current=null;}
+  function endStroke(e) {
+    if(e && e.pointerId!==activePointer.current) return;
+    const pointer=activePointer.current;
+    activePointer.current=null;drawing.current=false;pauseStroke();setTouching(false);
+    const canvas=canvasRef.current;
+    if(pointer!==null && canvas?.hasPointerCapture(pointer)) canvas.releasePointerCapture(pointer);
+  }
   function erase(e) {
-    if (!drawing.current || finished.current) return;
+    if (!drawing.current || finished.current || e.pointerId!==activePointer.current) return;
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
+    if(e.clientX<rect.left || e.clientX>rect.right || e.clientY<rect.top || e.clientY>rect.bottom) {pauseStroke();return;}
     const x = (e.clientX - rect.left) / rect.width * canvas.width;
     const y = (e.clientY - rect.top) / rect.height * canvas.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.globalCompositeOperation = 'destination-out';
     ctx.lineWidth = 58; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const from = previous.current || { x, y };
+    const last=previous.current;
+    const from = last || { x, y };
     ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(x, y); ctx.stroke();
     ctx.beginPath(); ctx.arc(x, y, 29, 0, Math.PI * 2); ctx.fill();
     // Track actual erased coverage on a grid; pointer distance alone can be gamed
     // by scratching the same line repeatedly and is inaccurate on touchscreens.
+    const cellsBefore=progressCells.current.size;
     const steps = Math.max(1, Math.ceil(Math.hypot(x - from.x, y - from.y) / 12));
     for (let step = 0; step <= steps; step++) {
       const px = from.x + (x - from.x) * step / steps, py = from.y + (y - from.y) * step / steps;
@@ -88,7 +114,16 @@ function ScratchSurface({ play, onReveal }) {
       }
     }
     const percent = Math.min(100, Math.round(progressCells.current.size / 960 / 0.43 * 100));
-    setProgress(percent); previous.current = { x, y };
+    if(last) {
+      const distance=Math.hypot(e.clientX-last.clientX,e.clientY-last.clientY);
+      if(distance>=.45) scratchSound.current?.move({
+        speed:distance/Math.max(4,Math.min(50,e.timeStamp-last.time))*1000,
+        pan:((e.clientX-rect.left)/rect.width-.5)*.9,
+        pressure:e.pressure || .5,
+        freshness:Math.min(1,(progressCells.current.size-cellsBefore)/Math.max(1,steps*4)),
+      });
+    }
+    setProgress(percent); previous.current = { x, y, clientX:e.clientX,clientY:e.clientY,time:e.timeStamp };
     if (percent >= 100) finish();
   }
   return <div className="scratch-area-wrap">
@@ -96,9 +131,8 @@ function ScratchSurface({ play, onReveal }) {
       <div className="scratch-under" aria-hidden="true"><Coffee size={46} strokeWidth={1}/><span>{play.won ? 'Este café va por nosotros.' : 'El ritual continúa.'}</span><p>{play.won ? 'Un café de cortesía para ti' : 'Gracias por compartir este momento'}</p></div>
       <motion.canvas ref={canvasRef} className="scratch-canvas" aria-label="Área para raspar con el dedo o el mouse. También puedes usar el botón Descubrir sin raspar."
         animate={{ opacity: progress === 100 ? 0 : 1 }} transition={{ duration: 0.25 }}
-        onPointerDown={e => { if (!ready) return; drawing.current = true; setTouching(true); previous.current = null; e.currentTarget.setPointerCapture(e.pointerId); erase(e); }}
-        onPointerMove={erase} onPointerUp={() => { drawing.current = false; setTouching(false); previous.current = null; }}
-        onPointerCancel={() => { drawing.current = false; setTouching(false); previous.current = null; }}/>
+        onPointerDown={e => { if (!ready || finished.current || activePointer.current!==null || e.isPrimary===false || e.button>0) return; if(sound)resumeExperienceSound(); activePointer.current=e.pointerId;drawing.current = true; setTouching(true); previous.current = null; e.currentTarget.setPointerCapture(e.pointerId); erase(e); }}
+        onPointerMove={erase} onPointerUp={endStroke} onPointerCancel={endStroke} onLostPointerCapture={endStroke} onPointerLeave={pauseStroke}/>
     </div>
     <div className="scratch-progress"><div className="progress-track"><motion.div animate={{ transform: `scaleX(${progress / 100})` }} transition={{ duration: 0.15 }}/></div><span>{progress}%</span></div>
     <div className="scratch-helper"><span><Fingerprint size={17}/> Tu dedo es la moneda.</span><button className="text-button" onClick={finish}>Descubrir sin raspar <ArrowUpRight size={14}/></button></div>
@@ -203,7 +237,7 @@ export default function App() {
           {mode === 'scratch' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
             <h1 ref={titleRef} tabIndex={-1}>¿Y si hoy<br/><em>te toca a ti?</em></h1>
             <p className="screen-description">Raspa la tarjeta. Tu próximo café<br/>podría ir por nuestra cuenta.</p>
-            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} onReveal={reveal}/></div>
+            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} sound={sound} onReveal={reveal}/></div>
             <div className="game-face-signature"><Coffee size={15} strokeWidth={1.2}/><span>UN PEQUEÑO RITUAL DE ANVID COFFE</span></div>
           </motion.section>}
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
