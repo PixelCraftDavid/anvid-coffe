@@ -9,6 +9,8 @@ import CoffeeObjects from './CoffeeObjects';
 import WinCelebration from './WinCelebration';
 import PaperToss from './PaperToss';
 import { setExperienceSound, resumeExperienceSound, playResultTone } from './experienceAudio';
+import PrizeTimestamp from './PrizeTimestamp.jsx';
+import { formatPrizeTimestamp } from './prizeDateTime.js';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -120,7 +122,10 @@ function savePass(play) {
   ctx.font = 'italic 86px Georgia'; ctx.fillText('Un café para ti.', 540, 600);
   ctx.font = '30px sans-serif'; ctx.fillText('PASE DE DEMOSTRACIÓN', 540, 740);
   ctx.font = 'bold 46px monospace'; ctx.fillText(play.code, 540, 850);
-  ctx.font = '26px sans-serif'; ctx.fillText('Sin valor de canje. Vista previa de la experiencia.', 540, 940);
+  const timestamp=formatPrizeTimestamp(play.wonAt);
+  ctx.font = '30px sans-serif'; ctx.fillText(timestamp ? `Ganado el ${timestamp.date}` : 'Fecha no registrada · pase anterior',540,940);
+  if(timestamp) {ctx.font='28px sans-serif';ctx.fillText(`${timestamp.time} · ${timestamp.zone}`,540,993);}
+  ctx.font = '25px sans-serif'; ctx.fillText('Sin valor de canje. Vista previa de la experiencia.', 540, 1070);
   ctx.font = 'italic 36px Georgia'; ctx.fillText('La suerte también se toma.', 540, 1210);
   canvas.toBlob(blob => { if (!blob) return; const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'mi-pase-anvid-demo.png'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
 }
@@ -175,21 +180,22 @@ export default function App() {
   }, [mode, reduce]);
 
   function reveal() {
-    const next = { ...play, revealed: true }; setPlay(next); saveLocal({ play: next });
+    const next = { ...play, revealed: true, ...(play.won ? {wonAt:play.wonAt || new Date().toISOString()} : {}) }; setPlay(next); saveLocal({ play: next });
     if (next.won) { setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
-    if (sound) playResultTone(next.won);
+    if (sound) {resumeExperienceSound();if(!next.won) playResultTone(false);}
     setMode('result');
   }
   function restart(won) {
     setPlay(createPreviewPlay(won)); setMode('scratch'); setSavedPass(false); setMessage('');
   }
   function openReview(origin) { if(sound) resumeExperienceSound(); setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
+  function toggleSound() {const next=!sound;setExperienceSound(next);setSound(next);}
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
   return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio">
     <div className="game-backdrop" aria-hidden="true"><FluidBackdrop/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><CoffeeObjects celebration={winCelebration} won={play.revealed && play.won}/><div className="ambient-light"><i/><i/><i/></div><div className="coffee-vignette"/><div className="film-grain"/></div>
-    <header className="game-header"><Logo light/><button className="sound-control" onClick={() => {const next=!sound;setExperienceSound(next);setSound(next);}} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></header>
+    <header className="game-header"><Logo light/><button className="sound-control" onClick={toggleSound} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></header>
     <main className="game-main">
       <motion.div layout className="single-game-card" initial={enter} animate={visible} transition={{ duration: 0.6, ease, layout: { duration: .25, ease } }}>
         <ol className="game-steps" aria-label="Tu experiencia">{['Raspa', 'Descubre', 'Opina'].map((label, i) => <li key={label} className={i === step ? 'current' : i < step ? 'complete' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Check size={11}/> : `0${i + 1}`}</span>{label}</li>)}</ol>
@@ -203,7 +209,7 @@ export default function App() {
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
             {play.won && <Confetti/>}
             {play.won ? <><h1 ref={titleRef} tabIndex={-1}>Hoy invita<br/><em>la suerte.</em></h1><p className="screen-description">¡Ganaste un café de cortesía!<br/>Guarda este pequeño golpe de suerte.</p></> : <div className="loss-coupon"><span className="loss-coupon-brand">anvid <small>coffe</small></span><h1 ref={titleRef} tabIndex={-1}>Hoy no tocó.<br/><em>Lo bonito sigue.</em></h1><p>Esta tarjeta no tenía premio.<br/>Ojalá este café te regale una pausa bonita.<br/>Que hoy encuentres una razón para sonreír.</p><span className="loss-coupon-bottom">UN MOMENTO BONITO TAMBIÉN CUENTA.</span></div>}
-            {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>PASE DE DEMOSTRACIÓN · SIN VALOR DE CANJE</small></span></div><span className="mini-prize-code">{play.code}</span><button className="text-button" onClick={() => { savePass(play); setSavedPass(true); }}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {savedPass ? 'Pase guardado · descargar otra vez' : 'Guardar mi pase'}</button></div>}
+            {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>PASE DE DEMOSTRACIÓN · SIN VALOR DE CANJE</small></span></div><span className="mini-prize-code">{play.code}</span><PrizeTimestamp value={play.wonAt}/><button className="text-button" onClick={() => { savePass(play); setSavedPass(true); }}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {savedPass ? 'Pase guardado · descargar otra vez' : 'Guardar mi pase'}</button></div>}
             <div className="result-review-prompt"><Action onClick={() => openReview('result')}>Dejar una reseña de mi café</Action></div>
             <span className="result-footnote">Tu opinión es sobre el café que probaste.</span>
           </motion.section>}
@@ -220,7 +226,7 @@ export default function App() {
       </motion.div>
     </main>
     <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
-    {showWinCelebration && <WinCelebration resultTitleRef={titleRef} onClose={() => setShowWinCelebration(false)}/>}
+    {showWinCelebration && <WinCelebration resultTitleRef={titleRef} wonAt={play.wonAt} sound={sound} onToggleSound={toggleSound} onClose={() => setShowWinCelebration(false)}/>}
   </div></MotionConfig>;
 }
 

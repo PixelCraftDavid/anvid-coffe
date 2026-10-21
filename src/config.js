@@ -1,6 +1,8 @@
 export const cafe = {
   name: 'Anvid Coffe',
   demo: true,
+  timeZone: 'Etc/GMT+6',
+  timeZoneLabel: 'UTC−6',
   // Add the real Google Business review URL before running a live campaign.
   googleReviewUrl: '',
   storageKey: 'anvid-coffe-experience-v1',

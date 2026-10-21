@@ -1,6 +1,7 @@
 import { PAPER_TOSS } from './paperTossTimeline.js';
+import { renderWinCelebrationAudio } from './winCelebrationAudio.js';
 
-let context, output, paperBuffer;
+let context, output, paperBuffer, winBuffer, reducedWinBuffer;
 let enabled = false;
 const active = new Set();
 
@@ -57,7 +58,7 @@ export function renderPaperTossAudio(sampleRate) {
 }
 
 function graph() {
-  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; }
+  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; winBuffer=null; reducedWinBuffer=null; }
   if (!context) {
     const AudioCtx=window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
@@ -76,6 +77,16 @@ function getPaperBuffer(ctx) {
   return paperBuffer;
 }
 
+function getWinBuffer(ctx,reducedMotion=false) {
+  const cached=reducedMotion?reducedWinBuffer:winBuffer;
+  if(cached) return cached;
+  const {left,right}=renderWinCelebrationAudio(ctx.sampleRate,reducedMotion);
+  const buffer=ctx.createBuffer(2,left.length,ctx.sampleRate);
+  buffer.copyToChannel(left,0);buffer.copyToChannel(right,1);
+  if(reducedMotion) reducedWinBuffer=buffer;else winBuffer=buffer;
+  return buffer;
+}
+
 export function setExperienceSound(next) {
   enabled=next;
   try {
@@ -87,6 +98,7 @@ export function setExperienceSound(next) {
       // Called directly from the sound button, so mobile browsers can unlock audio.
       void ctx.resume().catch(()=>{});
       getPaperBuffer(ctx);
+      getWinBuffer(ctx);
     } else {
       for(const cancel of [...active]) cancel();
     }
@@ -115,6 +127,14 @@ export function playResultTone(won) {
 }
 
 export function schedulePaperTossAudio(epoch) {
+  return scheduleBufferAudio(epoch,getPaperBuffer);
+}
+
+export function scheduleWinCelebrationAudio(epoch,reducedMotion=false) {
+  return scheduleBufferAudio(epoch,ctx=>getWinBuffer(ctx,reducedMotion));
+}
+
+function scheduleBufferAudio(epoch,getBuffer) {
   if (!enabled || !context) return ()=>{};
   const ctx=context;
   let source, cancelled=false;
@@ -136,7 +156,7 @@ export function schedulePaperTossAudio(epoch) {
         : ctx.currentTime+(epoch-now)/1000-(ctx.outputLatency || ctx.baseLatency || 0);
       const offset=Math.max(0,ctx.currentTime-at);
       at=Math.max(ctx.currentTime,at);
-      const buffer=getPaperBuffer(ctx);
+      const buffer=getBuffer(ctx);
       if(offset>=buffer.duration) {cancel();return;}
       source=ctx.createBufferSource();source.buffer=buffer;source.connect(output);
       source.onended=cancel;source.start(at,offset);
