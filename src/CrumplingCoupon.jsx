@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { PAPER_TOSS } from './paperTossTimeline';
 
 const vertexSource = `
   attribute vec2 uv;
@@ -74,10 +75,12 @@ function couponTexture() {
   return canvas;
 }
 
-export default function CrumplingCoupon() {
+export default function CrumplingCoupon({ epochRef }) {
   const canvasRef=useRef(null);
   useEffect(()=>{
     const canvas=canvasRef.current;
+    const fallback=canvas.parentElement.querySelector('.paper-crumple-fallback');
+    fallback.style.animationDelay=`${(epochRef.current || performance.now())-performance.now()}ms`;
     canvas.parentElement.dataset.renderer='fallback';
     const gl=canvas.getContext('webgl',{alpha:true,antialias:true,depth:true,powerPreference:'low-power'});
     if(!gl || !gl.getExtension('OES_standard_derivatives')) {
@@ -134,11 +137,12 @@ export default function CrumplingCoupon() {
     document.fonts.ready.then(()=>{
       if(cancelled) return;
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,couponTexture());
+      const start=epochRef.current || performance.now();
+      canvas.style.animationDelay=`${start-performance.now()}ms`;
       canvas.parentElement.dataset.renderer='webgl';
-      const start=performance.now();
       const draw=now=>{
         if(cancelled || gl.isContextLost()) return;
-        const p=Math.min((now-start)/1550,1);
+        const p=Math.max(0,Math.min((now-start)/PAPER_TOSS.crumpleEnd,1));
         gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.uniform1f(progress,p); gl.drawArrays(gl.TRIANGLES,0,vertices.length/2);
         if(p<1) frame=requestAnimationFrame(draw);
       };
@@ -149,7 +153,7 @@ export default function CrumplingCoupon() {
       // Release this short-lived context after a true unmount, preserving Fast Refresh.
       setTimeout(()=>{if(!canvas.isConnected) gl.getExtension('WEBGL_lose_context')?.loseContext();},0);
     };
-  },[]);
+  },[epochRef]);
   return <div className="crumple-paper">
     <canvas ref={canvasRef} className="paper-crumple-canvas"/>
     <div className="paper-crumple-fallback"><span>anvid <small>coffe</small></span><h2>Hoy no tocó.<br/><em>Lo bonito sigue.</em></h2><i/><i/></div>

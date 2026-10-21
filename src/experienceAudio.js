@@ -1,0 +1,148 @@
+import { PAPER_TOSS } from './paperTossTimeline.js';
+
+let context, output, paperBuffer;
+let enabled = false;
+const active = new Set();
+
+// Original, deterministic foley: filtered paper crackles, a short metallic rim
+// resonance, then a soft paper landing. No downloads or microphone access.
+export function renderPaperTossAudio(sampleRate) {
+  const length = Math.ceil(sampleRate * PAPER_TOSS.duration / 1000);
+  const left = new Float32Array(length), right = new Float32Array(length);
+  let seed = 73651;
+  const random = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296 * 2 - 1; };
+  const add = (start, duration, pan, sample) => {
+    const first = Math.round(start * sampleRate), count = Math.round(duration * sampleRate);
+    const l = Math.cos((pan + 1) * Math.PI / 4), r = Math.sin((pan + 1) * Math.PI / 4);
+    for (let i=0;i<count && first+i<length;i++) {
+      const t=i/sampleRate, value=sample(t,i/count) * Math.min(t/.0015,1) * Math.min((duration-t)/.008,1);
+      left[first+i] += value*l; right[first+i] += value*r;
+    }
+  };
+  const rustle = (start, duration, gain, pan=0) => {
+    let low=0, band=0;
+    add(start,duration,pan,(t,p)=>{
+      const white=random();
+      low += .11*(white-low); band += .5*(white-band);
+      const envelope=Math.pow(Math.sin(Math.PI*p),1.2);
+      const grain=.5+.5*Math.abs(Math.sin(t*390+Math.sin(t*73)*2));
+      return (band-low)*envelope*grain*gain;
+    });
+  };
+  const folds = [[.035,.19,.38],[.20,.23,.47],[.39,.18,.42],[.56,.24,.58],[.79,.21,.50],[.97,.25,.59],[1.18,.20,.46],[1.35,.18,.32]];
+  for (const [start,duration,gain] of folds) rustle(start,duration,gain);
+  for (const [start,gain] of [[.12,.13],[.28,.16],[.46,.12],[.65,.18],[.85,.12],[1.08,.16],[1.24,.12],[1.43,.09]]) {
+    add(start,.032,0,t=>random()*Math.exp(-t*125)*gain);
+  }
+  const rim=PAPER_TOSS.rim/1000;
+  add(rim,.27,.3,t=>{
+    const modes=[[1375,.20,.085],[2235,.12,.065],[3260,.065,.042],[4660,.028,.025]];
+    let value=0;
+    for(const [frequency,gain,decay] of modes) value += Math.sin(2*Math.PI*frequency*t)*gain*Math.exp(-t/decay);
+    return value + random()*.13*Math.exp(-t*190);
+  });
+  rustle(rim+.004,.075,.19,.3);
+  const landing=PAPER_TOSS.landing/1000;
+  add(landing,.24,.28,t=>{
+    const thud=Math.sin(2*Math.PI*(155*t-110*t*t))*.25*Math.exp(-t*36);
+    const wire=(Math.sin(2*Math.PI*710*t)+Math.sin(2*Math.PI*1140*t)*.35)*.026*Math.exp(-t*27);
+    return thud+wire;
+  });
+  rustle(landing,.20,.32,.28);
+  let peak=0;
+  for(let i=0;i<length;i++) peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));
+  const gain=.72/Math.max(peak,.72);
+  for(let i=0;i<length;i++) {left[i]*=gain;right[i]*=gain;}
+  return {left,right};
+}
+
+function graph() {
+  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; }
+  if (!context) {
+    const AudioCtx=window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    context=new AudioCtx({latencyHint:'interactive'});
+    output=context.createGain(); output.gain.value=0; output.connect(context.destination);
+  }
+  return context;
+}
+
+function getPaperBuffer(ctx) {
+  if (!paperBuffer) {
+    const {left,right}=renderPaperTossAudio(ctx.sampleRate);
+    paperBuffer=ctx.createBuffer(2,left.length,ctx.sampleRate);
+    paperBuffer.copyToChannel(left,0); paperBuffer.copyToChannel(right,1);
+  }
+  return paperBuffer;
+}
+
+export function setExperienceSound(next) {
+  enabled=next;
+  try {
+    const ctx=next?graph():context;
+    if (!ctx) return;
+    output.gain.cancelScheduledValues(ctx.currentTime);
+    output.gain.setTargetAtTime(next ? .48 : 0,ctx.currentTime,.012);
+    if (next) {
+      // Called directly from the sound button, so mobile browsers can unlock audio.
+      void ctx.resume().catch(()=>{});
+      getPaperBuffer(ctx);
+    } else {
+      for(const cancel of [...active]) cancel();
+    }
+  } catch { /* Audio is optional and never blocks the game. */ }
+}
+
+export function resumeExperienceSound() {
+  if (enabled && context) void context.resume().catch(()=>{});
+}
+
+export function playResultTone(won) {
+  if (!enabled) return;
+  try {
+    const ctx=graph(); if (!ctx) return;
+    void ctx.resume().catch(()=>{});
+    (won?[523.25,659.25,783.99,1046.5]:[392,523.25]).forEach((frequency,i)=>{
+      const oscillator=ctx.createOscillator(), gain=ctx.createGain();
+      const at=ctx.currentTime+i*.1;
+      oscillator.type='sine'; oscillator.frequency.value=frequency;
+      gain.gain.setValueAtTime(0,at); gain.gain.linearRampToValueAtTime(.10,at+.02); gain.gain.exponentialRampToValueAtTime(.001,at+.5);
+      oscillator.connect(gain); gain.connect(output);
+      const cancel=()=>{try{oscillator.stop();}catch{} oscillator.disconnect();gain.disconnect();active.delete(cancel);};
+      active.add(cancel); oscillator.onended=cancel; oscillator.start(at); oscillator.stop(at+.6);
+    });
+  } catch { /* Audio is optional. */ }
+}
+
+export function schedulePaperTossAudio(epoch) {
+  if (!enabled || !context) return ()=>{};
+  const ctx=context;
+  let source, cancelled=false;
+  const cancel=()=>{
+    cancelled=true;
+    if(source) {source.onended=null;try{source.stop();}catch{} source.disconnect();}
+    active.delete(cancel);
+    document.removeEventListener('visibilitychange',onVisibility);
+  };
+  const onVisibility=()=>{if(document.hidden) cancel();};
+  const schedule=()=>{
+    if(cancelled || !enabled || document.hidden || ctx.state!=='running') return;
+    try {
+      const now=performance.now();
+      const stamp=ctx.getOutputTimestamp?.();
+      // Align the audible output with the performance-clock animation epoch.
+      let at=stamp?.performanceTime>0 && stamp.contextTime>0
+        ? stamp.contextTime+(epoch-stamp.performanceTime)/1000
+        : ctx.currentTime+(epoch-now)/1000-(ctx.outputLatency || ctx.baseLatency || 0);
+      const offset=Math.max(0,ctx.currentTime-at);
+      at=Math.max(ctx.currentTime,at);
+      const buffer=getPaperBuffer(ctx);
+      if(offset>=buffer.duration) {cancel();return;}
+      source=ctx.createBufferSource();source.buffer=buffer;source.connect(output);
+      source.onended=cancel;source.start(at,offset);
+    } catch {cancel();}
+  };
+  active.add(cancel); document.addEventListener('visibilitychange',onVisibility);
+  if(ctx.state==='running') schedule(); else void ctx.resume().then(schedule).catch(cancel);
+  return cancel;
+}

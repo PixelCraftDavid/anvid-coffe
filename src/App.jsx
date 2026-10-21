@@ -8,6 +8,7 @@ import CafeReviews from './CafeReviews';
 import CoffeeObjects from './CoffeeObjects';
 import WinCelebration from './WinCelebration';
 import PaperToss from './PaperToss';
+import { setExperienceSound, resumeExperienceSound, playResultTone } from './experienceAudio';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -22,29 +23,6 @@ function Logo({ light = false, compact = false }) {
 
 function Action({ children, onClick, className = '', light = false, ...props }) {
   return <button onClick={onClick} className={`action ${light ? 'action-light' : ''} ${className}`} {...props}><span>{children}</span><span className="action-arrow"><ArrowUpRight size={20} strokeWidth={1.5}/></span></button>;
-}
-
-function useTone() {
-  const context = useRef(null);
-  return (won) => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      context.current ||= new AudioCtx();
-      const ctx = context.current;
-      ctx.resume();
-      (won ? [523.25, 659.25, 783.99, 1046.5] : [392, 523.25]).forEach((freq, i) => {
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-        oscillator.type = 'sine'; oscillator.frequency.value = freq;
-        gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.1);
-        gain.gain.linearRampToValueAtTime(0.07, ctx.currentTime + i * 0.1 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.5);
-        oscillator.connect(gain); gain.connect(ctx.destination);
-        oscillator.start(ctx.currentTime + i * 0.1); oscillator.stop(ctx.currentTime + i * 0.1 + 0.6);
-      });
-    } catch { /* Optional audio never blocks play. */ }
-  };
 }
 
 function ScratchSurface({ play, onReveal }) {
@@ -185,7 +163,6 @@ export default function App() {
   const [winCelebration, setWinCelebration] = useState(0);
   const [showWinCelebration, setShowWinCelebration] = useState(false);
   const reduce = useReducedMotion();
-  const tone = useTone();
   const titleRef = useRef(null);
   const firstRender = useRef(true);
   const step = mode === 'reviews' ? (play.revealed ? 1 : 0) : mode === 'scratch' ? 0 : mode === 'result' ? 1 : 2;
@@ -200,19 +177,19 @@ export default function App() {
   function reveal() {
     const next = { ...play, revealed: true }; setPlay(next); saveLocal({ play: next });
     if (next.won) { setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
-    if (sound) tone(next.won);
+    if (sound) playResultTone(next.won);
     setMode('result');
   }
   function restart(won) {
     setPlay(createPreviewPlay(won)); setMode('scratch'); setSavedPass(false); setMessage('');
   }
-  function openReview(origin) { setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
+  function openReview(origin) { if(sound) resumeExperienceSound(); setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
   return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio">
     <div className="game-backdrop" aria-hidden="true"><FluidBackdrop/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><CoffeeObjects celebration={winCelebration} won={play.revealed && play.won}/><div className="ambient-light"><i/><i/><i/></div><div className="coffee-vignette"/><div className="film-grain"/></div>
-    <header className="game-header"><Logo light/><button className="sound-control" onClick={() => setSound(v => !v)} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></header>
+    <header className="game-header"><Logo light/><button className="sound-control" onClick={() => {const next=!sound;setExperienceSound(next);setSound(next);}} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></header>
     <main className="game-main">
       <motion.div layout className="single-game-card" initial={enter} animate={visible} transition={{ duration: 0.6, ease, layout: { duration: .25, ease } }}>
         <ol className="game-steps" aria-label="Tu experiencia">{['Raspa', 'Descubre', 'Opina'].map((label, i) => <li key={label} className={i === step ? 'current' : i < step ? 'complete' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Check size={11}/> : `0${i + 1}`}</span>{label}</li>)}</ol>
@@ -230,7 +207,7 @@ export default function App() {
             <div className="result-review-prompt"><Action onClick={() => openReview('result')}>Dejar una reseña de mi café</Action></div>
             <span className="result-footnote">Tu opinión es sobre el café que probaste.</span>
           </motion.section>}
-          {mode === 'paper-toss' && <motion.section key="paper-toss" initial={enter} animate={visible} exit={{opacity:0}} transition={{duration:.2,ease}} className="game-face paper-toss-face"><PaperToss titleRef={titleRef} onComplete={() => setMode('review')}/></motion.section>}
+          {mode === 'paper-toss' && <motion.section key="paper-toss" initial={enter} animate={visible} exit={{opacity:0}} transition={{duration:.2,ease}} className="game-face paper-toss-face"><PaperToss titleRef={titleRef} sound={sound} onComplete={() => setMode('review')}/></motion.section>}
           {mode === 'review' && <motion.section key="review" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face coffee-review-face">
             <button className="back-to-result" onClick={() => setMode(reviewOrigin)}><ArrowRight size={14}/> {reviewOrigin === 'reviews' ? 'Reseñas del café' : 'Mi resultado'}</button>
             <h1 ref={titleRef} tabIndex={-1}>Hablemos de<br/><em>tu café.</em></h1>

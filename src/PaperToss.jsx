@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import CrumplingCoupon from './CrumplingCoupon';
+import { PAPER_TOSS, PAPER_TOSS_LEAD_IN } from './paperTossTimeline';
+import { schedulePaperTossAudio } from './experienceAudio';
 
-const DURATION = 4300;
+const DURATION = PAPER_TOSS.duration;
 
 function Wastebasket({ front = false }) {
   return <svg viewBox="0 0 108 132" fill="none" aria-hidden="true">
@@ -25,46 +27,52 @@ function createBallFrames(targetX, mouthY) {
   const frames=[];
   const pose=(time,x,y,rotation,sx,sy,opacity=1)=>frames.push({offset:time/DURATION,transform:`translate3d(${x-38}px, ${y-38}px, 0px) rotate(${rotation}deg) scale(${sx}, ${sy})`,opacity});
   pose(0,0,95,-12,.75,.75,0);
-  pose(1250,0,95,-12,.75,.75,0);
-  pose(1580,0,95,12,.84,.84);
-  pose(1700,0,95,12,.84,.84);
+  pose(PAPER_TOSS.ballAppear,0,95,-12,.75,.75,0);
+  pose(PAPER_TOSS.ballReady,0,95,12,.84,.84);
+  pose(PAPER_TOSS.launch,0,95,12,.84,.84);
   const rimX=targetX-28,rimY=mouthY-27;
   // Sample a ballistic arc; the browser composites the full transform.
   for(let i=1;i<=40;i++) {
     const t=i/40;
-    pose(1700+t*1100,rimX*t,95+(rimY-95)*t-380*t*(1-t),12+t*308,.84-.12*t,.84-.12*t);
+    pose(PAPER_TOSS.launch+t*(PAPER_TOSS.rim-PAPER_TOSS.launch),rimX*t,95+(rimY-95)*t-380*t*(1-t),12+t*308,.84-.12*t,.84-.12*t);
   }
-  pose(2880,rimX,rimY+4.5,325,.82,.60);
+  pose(PAPER_TOSS.compressionEnd,rimX,rimY+4.5,325,.82,.60);
   // The rim redirects the compressed ball up and towards the opening.
   for(let i=1;i<=28;i++) {
     const t=i/28,stretch=Math.sin(Math.PI*t);
-    pose(2880+t*620,rimX+(targetX+3-rimX)*t,rimY+t-168*t*(1-t),325+85*t,.72-.05*stretch,.72+.04*stretch);
+    pose(PAPER_TOSS.compressionEnd+t*(PAPER_TOSS.bounceEnd-PAPER_TOSS.compressionEnd),rimX+(targetX+3-rimX)*t,rimY+t-168*t*(1-t),325+85*t,.72-.05*stretch,.72+.04*stretch);
   }
   for(let i=1;i<=20;i++) {
     const t=i/20;
-    pose(3500+t*420,targetX+3-t,mouthY-26+73*t*t,410+70*t,.72-.16*t,.72-.16*t);
+    pose(PAPER_TOSS.bounceEnd+t*(PAPER_TOSS.landing-PAPER_TOSS.bounceEnd),targetX+3-t,mouthY-26+73*t*t,410+70*t,.72-.16*t,.72-.16*t);
   }
-  pose(4060,targetX+2,mouthY+47,480,.56,.56,.8);
-  pose(4200,targetX+2,mouthY+47,480,.56,.56,0);
+  pose(PAPER_TOSS.fadeStart,targetX+2,mouthY+47,480,.56,.56,.8);
+  pose(PAPER_TOSS.fadeEnd,targetX+2,mouthY+47,480,.56,.56,0);
   pose(DURATION,targetX+2,mouthY+47,480,.56,.56,0);
   return frames;
 }
 
-export default function PaperToss({ onComplete, titleRef }) {
+export default function PaperToss({ onComplete, titleRef, sound = false }) {
   const reduce = useReducedMotion();
   const stageRef = useRef(null);
   const ballRef = useRef(null);
   const basketBackRef = useRef(null);
   const basketFrontRef = useRef(null);
   const done = useRef(onComplete); done.current = onComplete;
+  const epochRef = useRef(0);
+  const stopAudioRef = useRef(null);
+  const finish = () => {stopAudioRef.current?.();done.current();};
+
+  useLayoutEffect(()=>{epochRef.current=performance.now()+PAPER_TOSS_LEAD_IN;},[reduce]);
 
   useEffect(() => {
     if (reduce) { done.current(); return; }
+    const delay=Math.max(0,epochRef.current-performance.now());
     const stage=stageRef.current.getBoundingClientRect();
     const basket=basketBackRef.current.getBoundingClientRect();
     const targetX=basket.x+basket.width/2-stage.x-stage.width/2;
     const mouthY=basket.y-stage.y+basket.height*(28/132);
-    const animations=[ballRef.current.animate(createBallFrames(targetX,mouthY),{duration:DURATION,easing:'linear',fill:'both'})];
+    const animations=[ballRef.current.animate(createBallFrames(targetX,mouthY),{duration:DURATION,delay,easing:'linear',fill:'both'})];
     const wobble=[
       {transform:'translateX(-50%) rotate(0deg)',offset:0},
       {transform:'translateX(-50%) rotate(-3deg)',offset:.2},
@@ -72,22 +80,29 @@ export default function PaperToss({ onComplete, titleRef }) {
       {transform:'translateX(-50%) rotate(0deg)',offset:1},
     ];
     for(const element of [basketBackRef.current,basketFrontRef.current]) {
-      animations.push(element.animate(wobble,{duration:500,delay:2790,easing:'cubic-bezier(.23,1,.32,1)',fill:'both'}));
+      animations.push(element.animate(wobble,{duration:500,delay:delay+PAPER_TOSS.rim-10,easing:'cubic-bezier(.23,1,.32,1)',fill:'both'}));
     }
-    const timer=setTimeout(()=>done.current(),DURATION);
-    return ()=>{clearTimeout(timer);animations.forEach(animation=>animation.cancel());};
+    const timer=setTimeout(finish,DURATION+delay);
+    return ()=>{clearTimeout(timer);stopAudioRef.current?.();animations.forEach(animation=>animation.cancel());};
   }, [reduce]);
+
+  useEffect(()=>{
+    if(!sound || reduce) return;
+    const stop=schedulePaperTossAudio(epochRef.current);
+    stopAudioRef.current=stop;
+    return ()=>{stop();if(stopAudioRef.current===stop) stopAudioRef.current=null;};
+  },[sound,reduce]);
 
   return <>
     <h1 ref={titleRef} tabIndex={-1}>Hagamos espacio<br/><em>para tu opinión.</em></h1>
     <div className="paper-toss-stage" ref={stageRef} aria-hidden="true">
-      <CrumplingCoupon/>
+      <CrumplingCoupon epochRef={epochRef}/>
       <div className="toss-wastebasket basket-back" ref={basketBackRef}><Wastebasket/></div>
       <img ref={ballRef} src="/images/paper-ball.webp" alt="" className="toss-paper-ball"/>
       <div className="toss-wastebasket basket-front" ref={basketFrontRef}><Wastebasket front/></div>
       <span className="toss-ground"/>
     </div>
     <p className="paper-toss-caption">Tu opinión se queda con nosotros.</p>
-    <button className="text-button skip-paper-toss" onClick={onComplete}>Saltar animación y escribir <ArrowRight size={13}/></button>
+    <button className="text-button skip-paper-toss" onClick={finish}>Saltar animación y escribir <ArrowRight size={13}/></button>
   </>;
 }
