@@ -202,6 +202,8 @@ function ReviewForm({ onDone, compact = false, doneLabel = 'Volver a la experien
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(()=>!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [welcomeLanded,setWelcomeLanded]=useState(false);
+  const sceneCupRef=useRef(null);
   const [play, setPlay] = useState(() => readSaved().play || createPreviewPlay());
   const [mode, setMode] = useState(() => readSaved().play?.revealed ? 'result' : 'scratch');
   const [sound, setSound] = useState(()=>readSaved().soundMuted!==true);
@@ -216,8 +218,15 @@ export default function App() {
   const [showWinCelebration, setShowWinCelebration] = useState(false);
   const reduce = useReducedMotion();
   const titleRef = useRef(null);
+  const welcomePreviouslyOpen=useRef(showWelcome);
   const firstRender = useRef(true);
   const step = mode === 'reviews' ? (play.revealed ? 1 : 0) : mode === 'scratch' ? 0 : mode === 'result' ? 1 : 2;
+
+  useEffect(()=>{
+    const wasOpen=welcomePreviouslyOpen.current;
+    welcomePreviouslyOpen.current=showWelcome;
+    if(wasOpen && !showWelcome && !document.hidden) titleRef.current?.focus({preventScroll:true});
+  },[showWelcome]);
 
   useEffect(()=>{
     const stop=()=>haptics.current.stop();
@@ -256,8 +265,8 @@ export default function App() {
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
-  return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio">
-    <div className="game-backdrop" aria-hidden="true"><FluidBackdrop/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><div className="ambient-light"><i/><i/><i/></div><span className="backdrop-wordmark">ANVID</span><CoffeeObjects celebration={winCelebration} won={play.revealed && play.won}/><div className="coffee-vignette"/><div className="film-grain"/></div>
+  return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio" data-welcome-stage={showWelcome?(welcomeLanded?'landing':'intro'):'complete'}>
+    <div className="game-backdrop" aria-hidden="true"><FluidBackdrop/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><div className="ambient-light"><i/><i/><i/></div><span className="backdrop-wordmark">ANVID</span><CoffeeObjects anchorRef={sceneCupRef} celebration={winCelebration} won={play.revealed && play.won}/><div className="coffee-vignette"/><div className="film-grain"/></div>
     <header className="game-header"><Logo light/><div className="experience-controls">{haptics.current.supported && <button className="sound-control haptic-control" onClick={toggleVibration} aria-label={vibration ? 'Desactivar vibración' : 'Activar vibración'} aria-pressed={vibration} title="Vibración en celulares compatibles">{vibration ? <Vibrate size={18} strokeWidth={1.5}/> : <VibrateOff size={18} strokeWidth={1.5}/>}<span>Vibración {vibration ? 'activada' : 'desactivada'}</span></button>}<button className="sound-control" onClick={toggleSound} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></div></header>
     <main className="game-main">
       <motion.div layout className="single-game-card" initial={enter} animate={visible} transition={{ duration: 0.6, ease, layout: { duration: .25, ease } }}>
@@ -291,7 +300,7 @@ export default function App() {
     </main>
     <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={event=>{event.currentTarget.closest('details').open=false;prepareInteractionSound();setShowWelcome(true);}}><RotateCcw size={13}/> Repetir bienvenida</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
     {showWinCelebration && <WinCelebration resultTitleRef={titleRef} wonAt={play.wonAt} sound={sound} onToggleSound={toggleSound} onClose={() => {haptics.current.stop();setShowWinCelebration(false);}}/>}
-    {showWelcome && <CoffeeWelcome sound={sound} onToggleSound={toggleSound} onPrepareSound={prepareInteractionSound} onComplete={()=>{setShowWelcome(false);if(!document.hidden)titleRef.current?.focus({preventScroll:true});}}/>}
+    {showWelcome && <CoffeeWelcome sceneCupRef={sceneCupRef} onLanding={()=>setWelcomeLanded(true)} sound={sound} onToggleSound={toggleSound} onPrepareSound={prepareInteractionSound} onComplete={()=>{setShowWelcome(false);setWelcomeLanded(false);}}/>}
   </div></MotionConfig>;
 }
 

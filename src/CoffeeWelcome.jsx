@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Volume2, VolumeX } from 'lucide-react';
 import { COFFEE_WELCOME as WELCOME } from './coffeeWelcomeTimeline.js';
 import { scheduleWelcomePourAudio } from './experienceAudio.js';
+import WelcomeCupTransfer from './WelcomeCupTransfer.jsx';
 
 const outline = 'M150 167 134 104 146 52H214L232 104 216 167Z';
 
@@ -9,16 +10,21 @@ function Trace({ d, delay = 0, className = '' }) {
   return <path className={`welcome-trace ${className}`} d={d} pathLength="1" style={{ animationDelay: `${WELCOME.leadIn+delay}ms` }}/>;
 }
 
-export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrepareSound }) {
+export default function CoffeeWelcome({ onComplete, onLanding, sceneCupRef, sound, onToggleSound, onPrepareSound }) {
   const dialogRef = useRef(null);
   const callback = useRef(onComplete);
   const leaving = useRef(false);
   const completed = useRef(false);
   const exitTimer = useRef(null);
+  const landingTimer = useRef(null);
+  const cupMarker = useRef(null);
+  const transferring = useRef(false);
   const epoch = useRef(0);
   const stopAudio = useRef(null);
   const [closing, setClosing] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
+  const [transfer, setTransfer] = useState(null);
+  const [landed, setLanded] = useState(false);
   callback.current = onComplete;
 
   function finish() {
@@ -26,15 +32,34 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
     completed.current = true;
     stopAudio.current?.();
     clearTimeout(exitTimer.current);
+    clearTimeout(landingTimer.current);
     if (dialogRef.current?.open) dialogRef.current.close();
     callback.current();
   }
   function dismiss() {
+    if (transferring.current) { finish(); return; }
     if (leaving.current) return;
     leaving.current = true;
     stopAudio.current?.();
     setClosing(true);
     exitTimer.current = setTimeout(finish, WELCOME.exit);
+  }
+
+  function enterScene() {
+    if (leaving.current || completed.current) return;
+    const anchor=sceneCupRef.current;
+    const float=anchor?.querySelector('.cup-float');
+    const image=anchor?.querySelector('img');
+    if (!cupMarker.current || !float || !image?.complete || !image.naturalWidth || !Element.prototype.animate) { dismiss(); return; }
+    const source=cupMarker.current.getBoundingClientRect();
+    const target=anchor.getBoundingClientRect();
+    if (!source.width || !target.width || !target.height) { dismiss(); return; }
+    const floatStyle=getComputedStyle(float),cupStyle=getComputedStyle(image);
+    leaving.current=true;transferring.current=true;
+    stopAudio.current?.();
+    setTransfer({source:{left:source.left,top:source.top,width:source.width,height:source.height},target:{left:target.left,top:target.top,width:target.width,height:target.height},floatPose:floatStyle.transform,cupPose:cupStyle.transform,floatOrigin:floatStyle.transformOrigin,cupOrigin:cupStyle.transformOrigin});
+    landingTimer.current=setTimeout(()=>{if(completed.current)return;setLanded(true);onLanding();},WELCOME.transferLanding);
+    exitTimer.current=setTimeout(finish,WELCOME.transfer);
   }
 
   useLayoutEffect(() => {
@@ -44,27 +69,30 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
     epoch.current = performance.now()+WELCOME.leadIn;
     if (!dialog.open) dialog.showModal();
     dialog.focus({preventScroll:true});
-    const timer = setTimeout(dismiss, WELCOME.duration+WELCOME.leadIn);
+    const timer = setTimeout(enterScene, WELCOME.duration+WELCOME.leadIn);
     const hidden = () => { if (document.hidden) finish(); };
     const reduced = () => { if (preference.matches) finish(); };
+    const resized = () => { if (transferring.current) finish(); };
     document.addEventListener('visibilitychange', hidden);
     preference.addEventListener('change', reduced);
+    window.addEventListener('resize',resized);
     return () => {
-      clearTimeout(timer); clearTimeout(exitTimer.current);
+      clearTimeout(timer); clearTimeout(exitTimer.current);clearTimeout(landingTimer.current);
       stopAudio.current?.();
       document.removeEventListener('visibilitychange', hidden);
       preference.removeEventListener('change', reduced);
+      window.removeEventListener('resize',resized);
       if (dialog.open) dialog.close();
     };
   }, []);
 
   useEffect(() => {
     setAudioReady(false);
-    if (!sound || closing || completed.current) return;
+    if (!sound || closing || transfer || completed.current) return;
     const stop=scheduleWelcomePourAudio(epoch.current,()=>setAudioReady(true));
     stopAudio.current=stop;
     return ()=>{stop();if(stopAudio.current===stop) stopAudio.current=null;};
-  }, [sound,closing]);
+  }, [sound,closing,transfer]);
 
   const audible = sound && audioReady;
   const prepareWelcomeSound = event => {
@@ -93,11 +121,12 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
     '--welcome-steam': `${WELCOME.steam}ms`,
   };
 
-  return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" style={timingStyle} data-closing={closing} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onPointerUpCapture={prepareWelcomeSound} onClickCapture={event=>{if(event.detail===0) prepareWelcomeSound(event);}} onCancel={event => {event.preventDefault();dismiss();}}>
-    <div className="welcome-grain" aria-hidden="true"/>
+  return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" style={timingStyle} data-closing={closing} data-transferring={!!transfer} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onPointerUpCapture={prepareWelcomeSound} onClickCapture={event=>{if(event.detail===0) prepareWelcomeSound(event);}} onCancel={event => {event.preventDefault();dismiss();}}>
+    <div className="welcome-surface" aria-hidden="true"><div className="welcome-grain"/></div>
     <div className="welcome-content">
       <div className="welcome-brand" aria-hidden="true">anvid<span>COFFE & LITTLE RITUALS</span></div>
       <svg className="welcome-illustration" viewBox="0 0 600 320" fill="none" aria-hidden="true">
+        <rect ref={cupMarker} x="327" y="195" width="166" height="107" fill="transparent" pointerEvents="none"/>
         <defs>
           <linearGradient id="welcome-coffee" x1="0" y1="50" x2="0" y2="280" gradientUnits="userSpaceOnUse"><stop stopColor="#c3a778"/><stop offset="1" stopColor="#6e502f"/></linearGradient>
           <linearGradient id="welcome-porcelain" x1="340" y1="212" x2="450" y2="274" gradientUnits="userSpaceOnUse"><stop stopColor="#f1ebd6" stopOpacity=".07"/><stop offset="1" stopColor="#c2d19a" stopOpacity=".02"/></linearGradient>
@@ -118,7 +147,7 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
         </g>
         <path className="welcome-pour" d="M297 86C323 105 323 163 379 221Q391 245 395 276" pathLength="1" stroke="url(#welcome-coffee)" strokeWidth="3" strokeLinecap="round"/>
         <path className="welcome-pour-shine" d="M298 88C322 110 326 163 379 220Q391 245 394 274" pathLength="1" stroke="#ead7a9" strokeWidth=".7" strokeLinecap="round"/>
-        <g clipPath="url(#welcome-cup-clip)">
+        <g className="welcome-original-cup"><g clipPath="url(#welcome-cup-clip)">
           <path d="M338 210H452L444 269Q395 289 346 269Z" fill="url(#welcome-porcelain)"/>
           <g className="welcome-cup-fill"><path d="M340 220H452V285H340Z" fill="url(#welcome-coffee)" fillOpacity=".96"/><ellipse cx="395" cy="220" rx="53" ry="10" fill="#bda477"/><ellipse cx="395" cy="220" rx="47" ry="7" fill="#8f724d"/></g>
         </g>
@@ -129,11 +158,12 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
         </g>
         <ellipse className="welcome-ripple" cx="395" cy="222" rx="34" ry="5" stroke="#e6d5aa" strokeWidth=".8"/>
         <path className="welcome-heart" d="M395 220c-15-11-22 2-10 8l10 6 10-6c12-6 5-19-10-8Z" pathLength="1" stroke="#f0dfb9" strokeWidth="1.5"/>
-        <g className="welcome-steam" stroke="#d8e3bd" strokeWidth="1.2" strokeLinecap="round"><path d="M378 187c-14-18 13-23 0-42"/><path d="M399 184c-13-21 15-28 1-49"/><path d="M419 187c-12-16 11-21 1-36"/></g>
+        <g className="welcome-steam" stroke="#d8e3bd" strokeWidth="1.2" strokeLinecap="round"><path d="M378 187c-14-18 13-23 0-42"/><path d="M399 184c-13-21 15-28 1-49"/><path d="M419 187c-12-16 11-21 1-36"/></g></g>
       </svg>
       <p id="welcome-caption" className="welcome-caption">Todo empieza<br/><em>con un buen café.</em></p>
       <div className="welcome-finish-mark" aria-hidden="true"><i/><span>ANVID COFFE</span><i/></div>
     </div>
+    {transfer && <WelcomeCupTransfer geometry={transfer} landed={landed}/>}
     <div className="welcome-controls">
       <button className="welcome-sound" onClick={toggleWelcomeSound} aria-label={audible?'Silenciar bienvenida':'Activar sonido de la bienvenida'} aria-pressed={audible}>{audible?<Volume2 size={16} strokeWidth={1.4}/>:<VolumeX size={16} strokeWidth={1.4}/>}<span>{audible?'Sonido activado':sound?'Toca para escuchar':'Sonido desactivado'}</span></button>
       <button className="welcome-skip" onClick={dismiss}>Saltar bienvenida <ArrowUpRight size={17} strokeWidth={1.3}/></button>

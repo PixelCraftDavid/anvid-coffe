@@ -8,7 +8,7 @@ const beans = [
   [66,61,47,23,-20,-28], [81,80,38,17,-11,62], [48,47,43,24,-15,-74],
 ];
 
-export default function CoffeeObjects({ celebration, won }) {
+export default function CoffeeObjects({ celebration, won, anchorRef }) {
   const controls = useAnimationControls();
   const reduce = useReducedMotion();
 
@@ -30,7 +30,7 @@ export default function CoffeeObjects({ celebration, won }) {
   }, [celebration, won, reduce, controls]);
 
   return <div className={`coffee-objects ${won ? 'coffee-objects-won' : ''}`} aria-hidden="true">
-    <div className="cup-anchor"><div className="cup-float"><motion.img className="animated-coffee-cup" src="/images/anvid-cup.webp" alt="" animate={controls} draggable="false"/></div></div>
+    <div ref={anchorRef} className="cup-anchor"><div className="cup-float"><motion.img className="animated-coffee-cup" src="/images/anvid-cup.webp" alt="" animate={controls} draggable="false"/></div></div>
     <div className="floating-beans">{beans.map(([x,y,size,duration,delay,rotation],i) => <div className={`bean-flight bean-flight-${i % 3}`} key={i} style={{left:`${x}%`,top:`${y}%`,width:`${size}px`,animationDuration:`${duration}s`,animationDelay:`${delay}s`}}><img src="/images/coffee-bean.webp" alt="" draggable="false" style={{transform:`rotate(${rotation}deg)`}}/></div>)}</div>
   </div>;
 }

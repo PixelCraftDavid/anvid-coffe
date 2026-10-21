@@ -3,6 +3,8 @@ export const COFFEE_WELCOME = Object.freeze({
   leadIn: 80,
   duration: 4400,
   exit: 260,
+  transfer: 1100,
+  transferLanding: 820,
   tilt: 850,
   tiltDuration: 2700,
   potFill: 750,
