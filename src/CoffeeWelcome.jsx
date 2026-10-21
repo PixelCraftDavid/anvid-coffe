@@ -67,6 +67,13 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
   }, [sound,closing]);
 
   const audible = sound && audioReady;
+  const prepareWelcomeSound = event => {
+    if (!sound || audioReady || leaving.current || completed.current) return;
+    // Pointer release is a trusted activation on touch browsers. Controls keep
+    // their own actions, so muting or skipping never wakes audio accidentally.
+    if (event.target.closest('.welcome-controls button')) return;
+    onPrepareSound();
+  };
   const toggleWelcomeSound = () => {
     if (sound && !audioReady) onPrepareSound();
     else onToggleSound();
@@ -83,7 +90,7 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
     '--welcome-fill-duration': `${WELCOME.fillDuration}ms`,
   };
 
-  return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" style={timingStyle} data-closing={closing} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onCancel={event => {event.preventDefault();dismiss();}}>
+  return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" style={timingStyle} data-closing={closing} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onPointerUpCapture={prepareWelcomeSound} onClickCapture={event=>{if(event.detail===0) prepareWelcomeSound(event);}} onCancel={event => {event.preventDefault();dismiss();}}>
     <div className="welcome-grain" aria-hidden="true"/>
     <div className="welcome-content">
       <div className="welcome-brand" aria-hidden="true">anvid<span>COFFE & LITTLE RITUALS</span></div>
@@ -125,7 +132,7 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
       <div className="welcome-finish-mark" aria-hidden="true"><i/><span>ANVID COFFE</span><i/></div>
     </div>
     <div className="welcome-controls">
-      <button className="welcome-sound" onClick={toggleWelcomeSound} aria-label={audible?'Silenciar bienvenida':'Activar sonido de la bienvenida'} aria-pressed={audible}>{audible?<Volume2 size={16} strokeWidth={1.4}/>:<VolumeX size={16} strokeWidth={1.4}/>}<span>{audible?'Sonido activado':sound?'Activar sonido':'Sonido desactivado'}</span></button>
+      <button className="welcome-sound" onClick={toggleWelcomeSound} aria-label={audible?'Silenciar bienvenida':'Activar sonido de la bienvenida'} aria-pressed={audible}>{audible?<Volume2 size={16} strokeWidth={1.4}/>:<VolumeX size={16} strokeWidth={1.4}/>}<span>{audible?'Sonido activado':sound?'Toca para escuchar':'Sonido desactivado'}</span></button>
       <button className="welcome-skip" onClick={dismiss}>Saltar bienvenida <ArrowUpRight size={17} strokeWidth={1.3}/></button>
     </div>
   </dialog>;

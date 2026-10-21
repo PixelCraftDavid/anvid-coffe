@@ -2,6 +2,7 @@ node_modules/
 dist/
 .local/
 output/
+outputs/
 *.tar.gz
 *.log
 .env
