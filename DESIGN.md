@@ -20,3 +20,5 @@ An intimate editorial world: deep olive, black edges, liquid glass and afternoon
 - Responsive at 620px, 800px and 1100px, with touch-safe controls, safe-area dialog padding and accessible alternative reveal.
 
 References inspected: https://motion.dev, https://21st.dev, https://skiper-ui.com, https://horizonx.so, https://animmasterlib.dev. Motion is the installed runtime. Components are authored for Anvid rather than copying paid component code.
+
+- On phones, cup and backdrop lettering now follow the glass top rather than fixed screen coordinates: cup anchor is 60px above it and ANVID starts 68px above it. The smaller winning pose gets a -14.4% anchor translation to offset its 0.76 scale around a 60% vertical origin. This compensation is applied only during an actual animated prize pose; a restored win at normal size and reduced motion retain the regular placement. The lid remains above the foreground panel in scratch, result and review states.

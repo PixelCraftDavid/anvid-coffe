@@ -19,3 +19,6 @@ The current experience is an explicitly labeled interactive demonstration. It su
 
 ## Open Decisions
 Real purchase validation, prize allocation, redemption, promotion rules, campaign dates, actual café products, real review destination and server storage have not been supplied. No fictitious social proof, location or reviews are used.
+
+## Confirmed deployment preferences
+Only free plans and services, without enabling paid billing. The intended setup order is GitHub, Vercel, then Firebase Spark; the owner has a GitHub account but no project setup has been completed. Requested database records are coupons (identifier, win/no-win result and coupon date/time) and coffee reviews (one 1–5 star rating, comment and date/time). Database integration remains pending platform setup.

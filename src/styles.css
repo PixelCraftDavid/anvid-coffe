@@ -139,3 +139,11 @@
 @media(max-height:820px){.single-game-card{width:min(350px,var(--scene-card-width));padding:14px 22px 12px;border-radius:27px}.game-steps{padding-bottom:8px;margin-bottom:10px}.game-face>h1,.result-face>h1{font-size:38px}.game-face>.screen-description{margin-top:8px;line-height:1.6}.standalone-ticket{margin-top:10px}.standalone-ticket .scratch-progress{margin-top:8px}.card-bottom-mark{margin-top:10px;padding-top:8px}.coffee-review-face>h1,.reviews-face>h1{font-size:32px}.mini-prize{margin-top:12px}.loss-coupon>h1{font-size:30px}.loss-coupon{padding:17px 15px 14px}.loss-coupon-brand{margin-bottom:10px}.loss-coupon-bottom{margin-top:12px;padding-top:9px}}
 @media(max-height:820px){.result-face:has(.mini-prize)>h1{font-size:34px}.mini-prize{padding:11px 13px 6px}.mini-prize-code{margin-top:8px;padding-top:8px}.mini-prize>.prize-timestamp{margin-block:8px}.result-face:has(.mini-prize) .result-review-prompt{margin-top:12px}}
 @media(max-height:660px){.game-shell{--scene-card-top:145px;--scene-header-height:60px;--scene-footer-height:calc(42px + env(safe-area-inset-bottom,0px))}.cup-anchor{top:86px;width:280px}.backdrop-wordmark{top:72px}.game-footer{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}.single-game-card{width:min(320px,var(--scene-card-width))}.game-face>h1,.result-face>h1{font-size:34px}}
+/* Keep the mobile composition tied to the glass, including the smaller prize
+   pose. Its 0.76 scale around a 60% origin shifts the lid down by 14.4% of its
+   height; moving the anchor by the opposite amount keeps the lid exposed. */
+@media(max-width:620px){
+  .cup-anchor{top:calc(var(--scene-card-top) - 60px)}
+  .coffee-objects-celebrated .cup-anchor{transform:translate(-50%,-14.4%)}
+  .backdrop-wordmark{top:calc(var(--scene-card-top) - 68px)}
+}
