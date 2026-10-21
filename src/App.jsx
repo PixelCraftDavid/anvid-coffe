@@ -12,6 +12,8 @@ import { setExperienceSound, playResultTone, createScratchSound } from './experi
 import PrizeTimestamp from './PrizeTimestamp.jsx';
 import { formatPrizeTimestamp } from './prizeDateTime.js';
 import { createExperienceHaptics } from './experienceHaptics.js';
+import CoffeeWelcome from './CoffeeWelcome.jsx';
+import LiquidGlass from './LiquidGlass.jsx';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -199,6 +201,7 @@ function ReviewForm({ onDone, compact = false, doneLabel = 'Volver a la experien
 }
 
 export default function App() {
+  const [showWelcome, setShowWelcome] = useState(()=>!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [play, setPlay] = useState(() => readSaved().play || createPreviewPlay());
   const [mode, setMode] = useState(() => readSaved().play?.revealed ? 'result' : 'scratch');
   const [sound, setSound] = useState(()=>readSaved().soundMuted!==true);
@@ -258,6 +261,7 @@ export default function App() {
     <header className="game-header"><Logo light/><div className="experience-controls">{haptics.current.supported && <button className="sound-control haptic-control" onClick={toggleVibration} aria-label={vibration ? 'Desactivar vibración' : 'Activar vibración'} aria-pressed={vibration} title="Vibración en celulares compatibles">{vibration ? <Vibrate size={18} strokeWidth={1.5}/> : <VibrateOff size={18} strokeWidth={1.5}/>}<span>Vibración {vibration ? 'activada' : 'desactivada'}</span></button>}<button className="sound-control" onClick={toggleSound} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></div></header>
     <main className="game-main">
       <motion.div layout className="single-game-card" initial={enter} animate={visible} transition={{ duration: 0.6, ease, layout: { duration: .25, ease } }}>
+        <LiquidGlass/>
         <ol className="game-steps" aria-label="Tu experiencia">{['Raspa', 'Descubre', 'Opina'].map((label, i) => <li key={label} className={i === step ? 'current' : i < step ? 'complete' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Check size={11}/> : `0${i + 1}`}</span>{label}</li>)}</ol>
         <AnimatePresence mode="wait" initial={false}>
           {mode === 'scratch' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
@@ -285,8 +289,9 @@ export default function App() {
         <div className="card-bottom-mark">{mode !== 'reviews' ? <button className="view-reviews-link" onClick={() => setMode('reviews')}><Star size={11} strokeWidth={1.2}/> Ver reseñas del café <ArrowUpRight size={11}/></button> : <span>OPINIONES DEL CAFÉ</span>}<Flower/><span>COFFEE. LUCK. REPEAT.</span></div>
       </motion.div>
     </main>
-    <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
+    <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={event=>{event.currentTarget.closest('details').open=false;setShowWelcome(true);}}><RotateCcw size={13}/> Repetir bienvenida</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
     {showWinCelebration && <WinCelebration resultTitleRef={titleRef} wonAt={play.wonAt} sound={sound} onToggleSound={toggleSound} onClose={() => {haptics.current.stop();setShowWinCelebration(false);}}/>}
+    {showWelcome && <CoffeeWelcome onComplete={()=>{setShowWelcome(false);if(!document.hidden)titleRef.current?.focus({preventScroll:true});}}/>}
   </div></MotionConfig>;
 }
 
