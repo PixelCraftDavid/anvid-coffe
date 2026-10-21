@@ -8,7 +8,7 @@ import CafeReviews from './CafeReviews';
 import CoffeeObjects from './CoffeeObjects';
 import WinCelebration from './WinCelebration';
 import PaperToss from './PaperToss';
-import { setExperienceSound, resumeExperienceSound, playResultTone, createScratchSound } from './experienceAudio';
+import { setExperienceSound, playResultTone, createScratchSound } from './experienceAudio';
 import PrizeTimestamp from './PrizeTimestamp.jsx';
 import { formatPrizeTimestamp } from './prizeDateTime.js';
 
@@ -27,7 +27,7 @@ function Action({ children, onClick, className = '', light = false, ...props }) 
   return <button onClick={onClick} className={`action ${light ? 'action-light' : ''} ${className}`} {...props}><span>{children}</span><span className="action-arrow"><ArrowUpRight size={20} strokeWidth={1.5}/></span></button>;
 }
 
-function ScratchSurface({ play, onReveal, sound = false }) {
+function ScratchSurface({ play, onReveal, sound = false, onScratchStart }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const previous = useRef(null);
@@ -42,9 +42,9 @@ function ScratchSurface({ play, onReveal, sound = false }) {
   callback.current = onReveal;
 
   useEffect(()=>{
-    if(!sound) return;
-    const controller=createScratchSound();scratchSound.current=controller;
-    return ()=>{controller.dispose();if(scratchSound.current===controller)scratchSound.current=null;};
+    if(!sound) {scratchSound.current?.dispose();scratchSound.current=null;}
+    else if(drawing.current && !scratchSound.current) scratchSound.current=createScratchSound();
+    return ()=>{scratchSound.current?.dispose();scratchSound.current=null;};
   },[sound]);
 
   useEffect(()=>{
@@ -131,7 +131,8 @@ function ScratchSurface({ play, onReveal, sound = false }) {
       <div className="scratch-under" aria-hidden="true"><Coffee size={46} strokeWidth={1}/><span>{play.won ? 'Este café va por nosotros.' : 'El ritual continúa.'}</span><p>{play.won ? 'Un café de cortesía para ti' : 'Gracias por compartir este momento'}</p></div>
       <motion.canvas ref={canvasRef} className="scratch-canvas" aria-label="Área para raspar con el dedo o el mouse. También puedes usar el botón Descubrir sin raspar."
         animate={{ opacity: progress === 100 ? 0 : 1 }} transition={{ duration: 0.25 }}
-        onPointerDown={e => { if (!ready || finished.current || activePointer.current!==null || e.isPrimary===false || e.button>0) return; if(sound)resumeExperienceSound(); activePointer.current=e.pointerId;drawing.current = true; setTouching(true); previous.current = null; e.currentTarget.setPointerCapture(e.pointerId); erase(e); }}
+        onPointerDown={e => { if (!ready || finished.current || activePointer.current!==null || e.isPrimary===false || e.button>0) return; const canPlay=onScratchStart?.() ?? sound;scratchSound.current?.dispose();scratchSound.current=canPlay?createScratchSound():null; activePointer.current=e.pointerId;drawing.current = true; setTouching(true); previous.current = null; e.currentTarget.setPointerCapture(e.pointerId); erase(e); }}
+        onTouchStart={()=>{if(ready && !finished.current) onScratchStart?.();}}
         onPointerMove={erase} onPointerUp={endStroke} onPointerCancel={endStroke} onLostPointerCapture={endStroke} onPointerLeave={pauseStroke}/>
     </div>
     <div className="scratch-progress"><div className="progress-track"><motion.div animate={{ transform: `scaleX(${progress / 100})` }} transition={{ duration: 0.15 }}/></div><span>{progress}%</span></div>
@@ -195,7 +196,8 @@ function ReviewForm({ onDone, compact = false, doneLabel = 'Volver a la experien
 export default function App() {
   const [play, setPlay] = useState(() => readSaved().play || createPreviewPlay());
   const [mode, setMode] = useState(() => readSaved().play?.revealed ? 'result' : 'scratch');
-  const [sound, setSound] = useState(false);
+  const [sound, setSound] = useState(()=>readSaved().soundMuted!==true);
+  const soundAllowed=useRef(sound);
   const [savedPass, setSavedPass] = useState(false);
   const [message, setMessage] = useState('');
   const [reviewOrigin, setReviewOrigin] = useState('result');
@@ -216,14 +218,20 @@ export default function App() {
   function reveal() {
     const next = { ...play, revealed: true, ...(play.won ? {wonAt:play.wonAt || new Date().toISOString()} : {}) }; setPlay(next); saveLocal({ play: next });
     if (next.won) { setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
-    if (sound) {resumeExperienceSound();if(!next.won) playResultTone(false);}
+    if (prepareInteractionSound() && !next.won) playResultTone(false);
     setMode('result');
   }
   function restart(won) {
     setPlay(createPreviewPlay(won)); setMode('scratch'); setSavedPass(false); setMessage('');
   }
-  function openReview(origin) { if(sound) resumeExperienceSound(); setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
-  function toggleSound() {const next=!sound;setExperienceSound(next);setSound(next);}
+  function prepareInteractionSound() {
+    if(!soundAllowed.current) return false;
+    // Unlock inside the trusted gesture, before the first pointer move arrives.
+    setExperienceSound(true);
+    return true;
+  }
+  function openReview(origin) { prepareInteractionSound(); setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
+  function toggleSound() {const next=!soundAllowed.current;soundAllowed.current=next;setExperienceSound(next);setSound(next);saveLocal({soundMuted:!next});}
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
@@ -237,7 +245,7 @@ export default function App() {
           {mode === 'scratch' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
             <h1 ref={titleRef} tabIndex={-1}>¿Y si hoy<br/><em>te toca a ti?</em></h1>
             <p className="screen-description">Raspa la tarjeta. Tu próximo café<br/>podría ir por nuestra cuenta.</p>
-            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} sound={sound} onReveal={reveal}/></div>
+            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} sound={sound} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
             <div className="game-face-signature"><Coffee size={15} strokeWidth={1.2}/><span>UN PEQUEÑO RITUAL DE ANVID COFFE</span></div>
           </motion.section>}
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
