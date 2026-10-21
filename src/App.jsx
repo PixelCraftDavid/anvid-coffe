@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'motion/react';
-import { ArrowUpRight, ArrowRight, Coffee, Fingerprint, Check, Star, Download, RotateCcw, Volume2, VolumeX, Heart, ExternalLink } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, Coffee, Fingerprint, Check, Star, Download, RotateCcw, Volume2, VolumeX, Vibrate, VibrateOff, Heart, ExternalLink } from 'lucide-react';
 import { cafe, readSaved, saveLocal, createPreviewPlay } from './config';
 import FluidBackdrop from './FluidBackdrop';
 import CafeReviews from './CafeReviews';
@@ -11,6 +11,7 @@ import PaperToss from './PaperToss';
 import { setExperienceSound, playResultTone, createScratchSound } from './experienceAudio';
 import PrizeTimestamp from './PrizeTimestamp.jsx';
 import { formatPrizeTimestamp } from './prizeDateTime.js';
+import { createExperienceHaptics } from './experienceHaptics.js';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -27,7 +28,7 @@ function Action({ children, onClick, className = '', light = false, ...props }) 
   return <button onClick={onClick} className={`action ${light ? 'action-light' : ''} ${className}`} {...props}><span>{children}</span><span className="action-arrow"><ArrowUpRight size={20} strokeWidth={1.5}/></span></button>;
 }
 
-function ScratchSurface({ play, onReveal, sound = false, onScratchStart }) {
+function ScratchSurface({ play, onReveal, sound = false, onScratchStart, haptics }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const previous = useRef(null);
@@ -51,8 +52,8 @@ function ScratchSurface({ play, onReveal, sound = false, onScratchStart }) {
     const blur=()=>endStroke();
     const visibility=()=>{if(document.hidden)endStroke();};
     window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);
-    return ()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};
-  },[]);
+    return ()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);haptics.stopScratch();};
+  },[haptics]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -78,7 +79,7 @@ function ScratchSurface({ play, onReveal, sound = false, onScratchStart }) {
     finished.current = true; endStroke();
     setProgress(100); callback.current();
   };
-  function pauseStroke() {scratchSound.current?.stop();previous.current=null;}
+  function pauseStroke() {scratchSound.current?.stop();haptics.stopScratch();previous.current=null;}
   function endStroke(e) {
     if(e && e.pointerId!==activePointer.current) return;
     const pointer=activePointer.current;
@@ -116,12 +117,16 @@ function ScratchSurface({ play, onReveal, sound = false, onScratchStart }) {
     const percent = Math.min(100, Math.round(progressCells.current.size / 960 / 0.43 * 100));
     if(last) {
       const distance=Math.hypot(e.clientX-last.clientX,e.clientY-last.clientY);
-      if(distance>=.45) scratchSound.current?.move({
-        speed:distance/Math.max(4,Math.min(50,e.timeStamp-last.time))*1000,
-        pan:((e.clientX-rect.left)/rect.width-.5)*.9,
-        pressure:e.pressure || .5,
-        freshness:Math.min(1,(progressCells.current.size-cellsBefore)/Math.max(1,steps*4)),
-      });
+      if(distance>=.45) {
+        const speed=distance/Math.max(4,Math.min(50,e.timeStamp-last.time))*1000;
+        scratchSound.current?.move({
+          speed,
+          pan:((e.clientX-rect.left)/rect.width-.5)*.9,
+          pressure:e.pressure || .5,
+          freshness:Math.min(1,(progressCells.current.size-cellsBefore)/Math.max(1,steps*4)),
+        });
+        haptics.scratch({distance,speed,pointerType:e.pointerType});
+      }
     }
     setProgress(percent); previous.current = { x, y, clientX:e.clientX,clientY:e.clientY,time:e.timeStamp };
     if (percent >= 100) finish();
@@ -198,6 +203,9 @@ export default function App() {
   const [mode, setMode] = useState(() => readSaved().play?.revealed ? 'result' : 'scratch');
   const [sound, setSound] = useState(()=>readSaved().soundMuted!==true);
   const soundAllowed=useRef(sound);
+  const [vibration, setVibration] = useState(()=>readSaved().vibrationEnabled ?? !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const haptics=useRef(null);
+  if (!haptics.current) haptics.current=createExperienceHaptics({enabled:vibration});
   const [savedPass, setSavedPass] = useState(false);
   const [message, setMessage] = useState('');
   const [reviewOrigin, setReviewOrigin] = useState('result');
@@ -208,6 +216,14 @@ export default function App() {
   const firstRender = useRef(true);
   const step = mode === 'reviews' ? (play.revealed ? 1 : 0) : mode === 'scratch' ? 0 : mode === 'result' ? 1 : 2;
 
+  useEffect(()=>{
+    const stop=()=>haptics.current.stop();
+    const visibility=()=>{if(document.hidden)stop();};
+    const resume=()=>haptics.current.resumePendingWin();
+    window.addEventListener('blur',stop);window.addEventListener('pointerup',resume);document.addEventListener('visibilitychange',visibility);
+    return ()=>{stop();window.removeEventListener('blur',stop);window.removeEventListener('pointerup',resume);document.removeEventListener('visibilitychange',visibility);};
+  },[]);
+
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     // Move focus to the newly revealed step after its short presence transition.
@@ -217,11 +233,12 @@ export default function App() {
 
   function reveal() {
     const next = { ...play, revealed: true, ...(play.won ? {wonAt:play.wonAt || new Date().toISOString()} : {}) }; setPlay(next); saveLocal({ play: next });
-    if (next.won) { setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
+    if (next.won) { haptics.current.win({reducedMotion:!!reduce});setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
     if (prepareInteractionSound() && !next.won) playResultTone(false);
     setMode('result');
   }
   function restart(won) {
+    haptics.current.stop();
     setPlay(createPreviewPlay(won)); setMode('scratch'); setSavedPass(false); setMessage('');
   }
   function prepareInteractionSound() {
@@ -232,12 +249,13 @@ export default function App() {
   }
   function openReview(origin) { prepareInteractionSound(); setReviewOrigin(origin); setMode(origin === 'result' && play.revealed && !play.won ? 'paper-toss' : 'review'); }
   function toggleSound() {const next=!soundAllowed.current;soundAllowed.current=next;setExperienceSound(next);setSound(next);saveLocal({soundMuted:!next});}
+  function toggleVibration() {const next=!vibration;haptics.current.setEnabled(next);setVibration(next);saveLocal({vibrationEnabled:next});}
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
   return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio">
     <div className="game-backdrop" aria-hidden="true"><FluidBackdrop/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><CoffeeObjects celebration={winCelebration} won={play.revealed && play.won}/><div className="ambient-light"><i/><i/><i/></div><div className="coffee-vignette"/><div className="film-grain"/></div>
-    <header className="game-header"><Logo light/><button className="sound-control" onClick={toggleSound} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></header>
+    <header className="game-header"><Logo light/><div className="experience-controls">{haptics.current.supported && <button className="sound-control haptic-control" onClick={toggleVibration} aria-label={vibration ? 'Desactivar vibración' : 'Activar vibración'} aria-pressed={vibration} title="Vibración en celulares compatibles">{vibration ? <Vibrate size={18} strokeWidth={1.5}/> : <VibrateOff size={18} strokeWidth={1.5}/>}<span>Vibración {vibration ? 'activada' : 'desactivada'}</span></button>}<button className="sound-control" onClick={toggleSound} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></div></header>
     <main className="game-main">
       <motion.div layout className="single-game-card" initial={enter} animate={visible} transition={{ duration: 0.6, ease, layout: { duration: .25, ease } }}>
         <ol className="game-steps" aria-label="Tu experiencia">{['Raspa', 'Descubre', 'Opina'].map((label, i) => <li key={label} className={i === step ? 'current' : i < step ? 'complete' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Check size={11}/> : `0${i + 1}`}</span>{label}</li>)}</ol>
@@ -245,7 +263,7 @@ export default function App() {
           {mode === 'scratch' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
             <h1 ref={titleRef} tabIndex={-1}>¿Y si hoy<br/><em>te toca a ti?</em></h1>
             <p className="screen-description">Raspa la tarjeta. Tu próximo café<br/>podría ir por nuestra cuenta.</p>
-            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} sound={sound} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
+            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} sound={sound} haptics={haptics.current} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
             <div className="game-face-signature"><Coffee size={15} strokeWidth={1.2}/><span>UN PEQUEÑO RITUAL DE ANVID COFFE</span></div>
           </motion.section>}
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
@@ -268,7 +286,7 @@ export default function App() {
       </motion.div>
     </main>
     <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
-    {showWinCelebration && <WinCelebration resultTitleRef={titleRef} wonAt={play.wonAt} sound={sound} onToggleSound={toggleSound} onClose={() => setShowWinCelebration(false)}/>}
+    {showWinCelebration && <WinCelebration resultTitleRef={titleRef} wonAt={play.wonAt} sound={sound} onToggleSound={toggleSound} onClose={() => {haptics.current.stop();setShowWinCelebration(false);}}/>}
   </div></MotionConfig>;
 }
 

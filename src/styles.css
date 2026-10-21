@@ -112,6 +112,7 @@
 .toss-paper-ball{top:0;width:76px;height:76px;opacity:0;z-index:3;will-change:transform,opacity}
 .toss-wastebasket{left:calc(50% + min(135px,29%));transform:translateX(-50%);z-index:2}
 .toss-wastebasket.basket-front{z-index:4;filter:none}
+.experience-controls{display:flex;align-items:center;gap:9px}.game-header .experience-controls .sound-control{width:44px;height:44px;flex-shrink:0;touch-action:manipulation}.haptic-control[aria-pressed="false"]{color:#c0cbb1}
 .celebration-sound{position:absolute;top:18px;left:18px;z-index:8;width:33px;height:33px;border:1px solid #e7f6ce3b;border-radius:50%;display:grid;place-items:center;background:#e5f3ce0d;color:#edf5df}
 .celebration-sound,.celebration-close{z-index:12;background:#172514e8;border-color:#e7f6ce77;box-shadow:0 2px 8px #0003}
 .prize-timestamp{display:flex;align-items:center;gap:9px;margin:13px 0 11px;color:#e0ebc9;text-align:left;line-height:1.45}.prize-timestamp>span{display:flex;flex-direction:column;gap:3px}.prize-timestamp strong{font-size:10px;font-weight:500;letter-spacing:0}.prize-timestamp small{font-size:9px;font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:.15px;color:#c9d9b3}.prize-timestamp>svg{opacity:.8}.timestamp-unavailable{font-size:8px;color:#ccd8b8}.win-theatre-footer>.prize-timestamp{justify-content:center;margin:0 0 13px}.win-theatre-footer>.prize-timestamp>span{align-items:flex-start}
