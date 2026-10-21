@@ -1,6 +1,7 @@
 import { PAPER_TOSS } from './paperTossTimeline.js';
 import { renderWinCelebrationAudio } from './winCelebrationAudio.js';
 import { renderScratchTexture, createScratchController } from './scratchAudio.js';
+import { COFFEE_WELCOME } from './coffeeWelcomeTimeline.js';
 
 let context, output, paperBuffer, winBuffer, reducedWinBuffer, scratchBuffer, welcomeBuffer;
 let enabled = false;
@@ -100,7 +101,7 @@ function getScratchBuffer(ctx) {
 function getWelcomeBuffer(ctx) {
   // Fetch and decode asynchronously. The expensive liquid synthesis is baked
   // into this local asset by scripts/render-coffee-pour.mjs, never during entry.
-  if (!welcomeBuffer) welcomeBuffer=fetch('/audio/coffee-pour.wav')
+  if (!welcomeBuffer) welcomeBuffer=fetch(`/audio/coffee-pour.wav?v=${COFFEE_WELCOME.duration}`)
     .then(response=>{if(!response.ok) throw new Error('Optional pour audio unavailable');return response.arrayBuffer();})
     .then(bytes=>ctx.decodeAudioData(bytes))
     .catch(error=>{welcomeBuffer=null;throw error;});

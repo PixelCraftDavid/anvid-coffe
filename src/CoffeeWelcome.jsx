@@ -88,6 +88,9 @@ export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrep
     '--welcome-pour-duration': `${WELCOME.pourDuration}ms`,
     '--welcome-fill': `${WELCOME.fill}ms`,
     '--welcome-fill-duration': `${WELCOME.fillDuration}ms`,
+    '--welcome-ripple': `${WELCOME.ripple}ms`,
+    '--welcome-heart': `${WELCOME.heart}ms`,
+    '--welcome-steam': `${WELCOME.steam}ms`,
   };
 
   return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" style={timingStyle} data-closing={closing} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onPointerUpCapture={prepareWelcomeSound} onClickCapture={event=>{if(event.detail===0) prepareWelcomeSound(event);}} onCancel={event => {event.preventDefault();dismiss();}}>
