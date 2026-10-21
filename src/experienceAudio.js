@@ -2,7 +2,7 @@ import { PAPER_TOSS } from './paperTossTimeline.js';
 import { renderWinCelebrationAudio } from './winCelebrationAudio.js';
 import { renderScratchTexture, createScratchController } from './scratchAudio.js';
 
-let context, output, paperBuffer, winBuffer, reducedWinBuffer, scratchBuffer;
+let context, output, paperBuffer, winBuffer, reducedWinBuffer, scratchBuffer, welcomeBuffer;
 let enabled = false;
 const active = new Set();
 
@@ -59,7 +59,7 @@ export function renderPaperTossAudio(sampleRate) {
 }
 
 function graph() {
-  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; winBuffer=null; reducedWinBuffer=null;scratchBuffer=null; }
+  if (context?.state === 'closed') { context=null; output=null; paperBuffer=null; winBuffer=null; reducedWinBuffer=null;scratchBuffer=null;welcomeBuffer=null; }
   if (!context) {
     const AudioCtx=window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
@@ -97,6 +97,16 @@ function getScratchBuffer(ctx) {
   return scratchBuffer;
 }
 
+function getWelcomeBuffer(ctx) {
+  // Fetch and decode asynchronously. The expensive liquid synthesis is baked
+  // into this local asset by scripts/render-coffee-pour.mjs, never during entry.
+  if (!welcomeBuffer) welcomeBuffer=fetch('/audio/coffee-pour.wav')
+    .then(response=>{if(!response.ok) throw new Error('Optional pour audio unavailable');return response.arrayBuffer();})
+    .then(bytes=>ctx.decodeAudioData(bytes))
+    .catch(error=>{welcomeBuffer=null;throw error;});
+  return welcomeBuffer;
+}
+
 export function createScratchSound() {
   const silent={move(){},stop(){},dispose(){}};
   if(!enabled || !context) return silent;
@@ -108,7 +118,7 @@ export function createScratchSound() {
   } catch {return silent;}
 }
 
-export function setExperienceSound(next) {
+export function setExperienceSound(next, { resume = true, warm = true } = {}) {
   enabled=next;
   try {
     const ctx=next?graph():context;
@@ -116,11 +126,10 @@ export function setExperienceSound(next) {
     output.gain.cancelScheduledValues(ctx.currentTime);
     output.gain.setTargetAtTime(next ? .48 : 0,ctx.currentTime,.012);
     if (next) {
-      // Called directly from the sound button, so mobile browsers can unlock audio.
-      void ctx.resume().catch(()=>{});
-      getPaperBuffer(ctx);
-      getWinBuffer(ctx);
-      getScratchBuffer(ctx);
+      // Trusted input handlers resume synchronously; the welcome only attempts
+      // already-permitted playback, without trying to bypass autoplay policy.
+      if (resume) void ctx.resume().catch(()=>{});
+      if (warm) { getPaperBuffer(ctx);getWinBuffer(ctx);getScratchBuffer(ctx); }
     } else {
       for(const cancel of [...active]) cancel();
     }
@@ -156,7 +165,25 @@ export function scheduleWinCelebrationAudio(epoch,reducedMotion=false) {
   return scheduleBufferAudio(epoch,ctx=>getWinBuffer(ctx,reducedMotion));
 }
 
-function scheduleBufferAudio(epoch,getBuffer) {
+export function scheduleWelcomePourAudio(epoch,onReady) {
+  let stopped=false,stop=()=>{};
+  const cancel=()=>{stopped=true;stop();active.delete(cancel);document.removeEventListener('visibilitychange',hidden);};
+  const hidden=()=>{if(document.hidden) cancel();};
+  try {
+    setExperienceSound(true,{resume:false,warm:false});
+    const ctx=context;
+    if(!ctx || document.hidden) return cancel;
+    active.add(cancel);document.addEventListener('visibilitychange',hidden);
+    void getWelcomeBuffer(ctx).then(buffer=>{
+      active.delete(cancel);document.removeEventListener('visibilitychange',hidden);
+      if(stopped || !enabled || document.hidden || context!==ctx) return;
+      stop=scheduleBufferAudio(epoch,()=>buffer,{waitForRunning:true,onReady});
+    }).catch(cancel);
+  } catch {cancel();}
+  return cancel;
+}
+
+function scheduleBufferAudio(epoch,getBuffer,{waitForRunning=false,onReady}={}) {
   if (!enabled || !context) return ()=>{};
   const ctx=context;
   let source, cancelled=false;
@@ -165,11 +192,13 @@ function scheduleBufferAudio(epoch,getBuffer) {
     if(source) {source.onended=null;try{source.stop();}catch{} source.disconnect();}
     active.delete(cancel);
     document.removeEventListener('visibilitychange',onVisibility);
+    if(waitForRunning) ctx.removeEventListener('statechange',onState);
   };
   const onVisibility=()=>{if(document.hidden) cancel();};
   const schedule=()=>{
-    if(cancelled || !enabled || document.hidden || ctx.state!=='running') return;
+    if(cancelled || source || !enabled || document.hidden || ctx.state!=='running') return;
     try {
+      const buffer=getBuffer(ctx);
       const now=performance.now();
       const stamp=ctx.getOutputTimestamp?.();
       // Align the audible output with the performance-clock animation epoch.
@@ -178,13 +207,15 @@ function scheduleBufferAudio(epoch,getBuffer) {
         : ctx.currentTime+(epoch-now)/1000-(ctx.outputLatency || ctx.baseLatency || 0);
       const offset=Math.max(0,ctx.currentTime-at);
       at=Math.max(ctx.currentTime,at);
-      const buffer=getBuffer(ctx);
       if(offset>=buffer.duration) {cancel();return;}
       source=ctx.createBufferSource();source.buffer=buffer;source.connect(output);
       source.onended=cancel;source.start(at,offset);
+      onReady?.();
     } catch {cancel();}
   };
+  const onState=()=>{if(ctx.state==='running') schedule();else if(ctx.state==='closed') cancel();};
   active.add(cancel); document.addEventListener('visibilitychange',onVisibility);
-  if(ctx.state==='running') schedule(); else void ctx.resume().then(schedule).catch(cancel);
+  if(waitForRunning) ctx.addEventListener('statechange',onState);
+  if(ctx.state==='running') schedule(); else if(!waitForRunning) void ctx.resume().then(schedule).catch(cancel);
   return cancel;
 }

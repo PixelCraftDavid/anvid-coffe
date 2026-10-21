@@ -1,24 +1,30 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowUpRight, Volume2, VolumeX } from 'lucide-react';
+import { COFFEE_WELCOME as WELCOME } from './coffeeWelcomeTimeline.js';
+import { scheduleWelcomePourAudio } from './experienceAudio.js';
 
 const outline = 'M150 167 134 104 146 52H214L232 104 216 167Z';
 
 function Trace({ d, delay = 0, className = '' }) {
-  return <path className={`welcome-trace ${className}`} d={d} pathLength="1" style={{ animationDelay: `${delay}ms` }}/>;
+  return <path className={`welcome-trace ${className}`} d={d} pathLength="1" style={{ animationDelay: `${WELCOME.leadIn+delay}ms` }}/>;
 }
 
-export default function CoffeeWelcome({ onComplete }) {
+export default function CoffeeWelcome({ onComplete, sound, onToggleSound, onPrepareSound }) {
   const dialogRef = useRef(null);
   const callback = useRef(onComplete);
   const leaving = useRef(false);
   const completed = useRef(false);
   const exitTimer = useRef(null);
+  const epoch = useRef(0);
+  const stopAudio = useRef(null);
   const [closing, setClosing] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
   callback.current = onComplete;
 
   function finish() {
     if (completed.current) return;
     completed.current = true;
+    stopAudio.current?.();
     clearTimeout(exitTimer.current);
     if (dialogRef.current?.open) dialogRef.current.close();
     callback.current();
@@ -26,30 +32,58 @@ export default function CoffeeWelcome({ onComplete }) {
   function dismiss() {
     if (leaving.current) return;
     leaving.current = true;
+    stopAudio.current?.();
     setClosing(true);
-    exitTimer.current = setTimeout(finish, 260);
+    exitTimer.current = setTimeout(finish, WELCOME.exit);
   }
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (preference.matches) { callback.current(); return; }
+    if (preference.matches || document.hidden) { finish(); return; }
+    epoch.current = performance.now()+WELCOME.leadIn;
     if (!dialog.open) dialog.showModal();
     dialog.focus({preventScroll:true});
-    const timer = setTimeout(dismiss, 3200);
+    const timer = setTimeout(dismiss, WELCOME.duration+WELCOME.leadIn);
     const hidden = () => { if (document.hidden) finish(); };
     const reduced = () => { if (preference.matches) finish(); };
     document.addEventListener('visibilitychange', hidden);
     preference.addEventListener('change', reduced);
     return () => {
       clearTimeout(timer); clearTimeout(exitTimer.current);
+      stopAudio.current?.();
       document.removeEventListener('visibilitychange', hidden);
       preference.removeEventListener('change', reduced);
       if (dialog.open) dialog.close();
     };
   }, []);
 
-  return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" data-closing={closing} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onCancel={event => {event.preventDefault();dismiss();}}>
+  useEffect(() => {
+    setAudioReady(false);
+    if (!sound || closing || completed.current) return;
+    const stop=scheduleWelcomePourAudio(epoch.current,()=>setAudioReady(true));
+    stopAudio.current=stop;
+    return ()=>{stop();if(stopAudio.current===stop) stopAudio.current=null;};
+  }, [sound,closing]);
+
+  const audible = sound && audioReady;
+  const toggleWelcomeSound = () => {
+    if (sound && !audioReady) onPrepareSound();
+    else onToggleSound();
+  };
+  const timingStyle = {
+    '--welcome-lead': `${WELCOME.leadIn}ms`,
+    '--welcome-tilt': `${WELCOME.tilt}ms`,
+    '--welcome-tilt-duration': `${WELCOME.tiltDuration}ms`,
+    '--welcome-pot-fill': `${WELCOME.potFill}ms`,
+    '--welcome-pot-fill-duration': `${WELCOME.potFillDuration}ms`,
+    '--welcome-pour': `${WELCOME.pour}ms`,
+    '--welcome-pour-duration': `${WELCOME.pourDuration}ms`,
+    '--welcome-fill': `${WELCOME.fill}ms`,
+    '--welcome-fill-duration': `${WELCOME.fillDuration}ms`,
+  };
+
+  return <dialog ref={dialogRef} tabIndex={-1} className="coffee-welcome" style={timingStyle} data-closing={closing} aria-label="Bienvenido a Anvid Coffe" aria-describedby="welcome-caption" onCancel={event => {event.preventDefault();dismiss();}}>
     <div className="welcome-grain" aria-hidden="true"/>
     <div className="welcome-content">
       <div className="welcome-brand" aria-hidden="true">anvid<span>COFFE & LITTLE RITUALS</span></div>
@@ -90,6 +124,9 @@ export default function CoffeeWelcome({ onComplete }) {
       <p id="welcome-caption" className="welcome-caption">Todo empieza<br/><em>con un buen café.</em></p>
       <div className="welcome-finish-mark" aria-hidden="true"><i/><span>ANVID COFFE</span><i/></div>
     </div>
-    <button className="welcome-skip" onClick={dismiss}>Saltar bienvenida <ArrowUpRight size={17} strokeWidth={1.3}/></button>
+    <div className="welcome-controls">
+      <button className="welcome-sound" onClick={toggleWelcomeSound} aria-label={audible?'Silenciar bienvenida':'Activar sonido de la bienvenida'} aria-pressed={audible}>{audible?<Volume2 size={16} strokeWidth={1.4}/>:<VolumeX size={16} strokeWidth={1.4}/>}<span>{audible?'Sonido activado':sound?'Activar sonido':'Sonido desactivado'}</span></button>
+      <button className="welcome-skip" onClick={dismiss}>Saltar bienvenida <ArrowUpRight size={17} strokeWidth={1.3}/></button>
+    </div>
   </dialog>;
 }
