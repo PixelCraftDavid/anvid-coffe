@@ -3,9 +3,12 @@ import { useReducedMotion } from 'motion/react';
 
 // A slow olive light field. The image remains photographic; this shader supplies
 // the flowing colour around it and its black falloff. It also has a CSS fallback.
-export default function FluidBackdrop() {
+export default function FluidBackdrop({paused=false}) {
   const canvasRef = useRef(null);
+  const pausedRef=useRef(paused),resumeRef=useRef(null);
+  pausedRef.current=paused;
   const reduced = useReducedMotion();
+  useEffect(()=>{resumeRef.current?.();},[paused]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,7 +72,7 @@ export default function FluidBackdrop() {
         gl.uniform1f(time, reduced ? 0 : (now - start) / 1000);
         gl.drawArrays(gl.TRIANGLES, 0, 6); previous = now;
       }
-      if (!reduced && !document.hidden) frame = requestAnimationFrame(draw);
+      if (!reduced && !document.hidden && !pausedRef.current) frame = requestAnimationFrame(draw);
     };
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -81,11 +84,13 @@ export default function FluidBackdrop() {
       previous = -1000; gl.uniform1f(time, reduced ? 0 : (performance.now() - start) / 1000); gl.drawArrays(gl.TRIANGLES, 0, 6);
     };
     const observer = new ResizeObserver(resize); observer.observe(canvas);
-    const onVisibility = () => { cancelAnimationFrame(frame); if (!document.hidden && !reduced) frame = requestAnimationFrame(draw); };
+    const onVisibility = () => { cancelAnimationFrame(frame); if (!document.hidden && !reduced && !pausedRef.current) frame = requestAnimationFrame(draw); };
+    resumeRef.current=onVisibility;
     document.addEventListener('visibilitychange', onVisibility);
     resize(); frame = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener('visibilitychange', onVisibility);
+      resumeRef.current=null;
       gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment);
     };
   }, [reduced]);

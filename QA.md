@@ -1,5 +1,20 @@
 # Verification
 
+## Firebase and mobile celebration — 21 October 2026
+
+The production target has moved to the owner's Vercel project, https://anvid-coffe.vercel.app/. Firebase project `anvid-coffe` uses Spark, Firestore Standard `(default)`, nam5, production rules. The server credential is configured by the owner only in Vercel; no real key is present in this repository. Live production connection is pending deployment verification.
+
+- Production Vite build passed with the new API client; no `firebase-admin`, `private_key` or `FIREBASE_SERVICE_ACCOUNT_JSON` is included in frontend assets.
+- Eight Node tests passed, with no skips, against the official Firestore emulator 1.19.8. Twenty concurrent distinct participants, all selected as winning candidates, persisted exactly one winning coupon. Repeating a participant returned the original code/result; the next UTC−6 day allowed a new winner, and losing did not consume its slot.
+- Emulator tests also verified 1–5 star validation, 600-character limit, UTC−6 midnight, signed-cookie restoration/tampering, same-origin checks, no configuration → 503 without a fake result, review update cooldown, average without duplicate votes, and pagination of 23 reviews into 20 + 3 without duplicate IDs.
+- Local app used a separate emulator project: its first real API draw opened the celebration, and a full reload restored the same winning code and server timestamp. Old local demonstration results/reviews are ignored. The demo controls and “Buen café. Pequeños rituales.” footer are removed.
+- The local form saved an actual 4-star review through the API and displayed its success state. Reading the reviews from a separate localhost cookie returned the same comment/score, global average 4, count 1, and isMine=false. This record exists only in the disposable emulator project.
+- The supplied Android screenshots showed missing cup/lid and rectangular compositing gaps. Code had an animated backdrop-blurred theatre over a second blurred backdrop, screen-blended lights, filtered image layers and the live scene shader. The theatre now stays still, uses an independent material layer, has no nested backdrop blur/drop-shadow filters, and pauses/hides the underlying costly scene while open. Stage images decode before the shared audio/visual epoch begins. Mobile uses 28 confetti particles; controls are at least 44px and the lid's travel stays inside the card.
+- The actual celebration component was inspected locally at 390×844, 360×740 and 320×568. Cup/lid decoded and rendered, the date and continue action remained visible, and no rectangular gaps appeared in this Chromium preview. The 360px lid bounds stayed within the 336px-wide theatre. Proof: ignored `.local/anvid-celebracion-movil-corregida.png`.
+- This viewport check does not reproduce the girlfriend's physical Android GPU/browser. A fresh test on that phone remains the final hardware check; no promise of measured device frame rate is made. No real production winner or fabricated public review is created by automated verification.
+
+Earlier records below describe the previous local demonstration and Sites deployment.
+
 Verified in the in-app browser on 20–21 October 2026.
 
 - Desktop viewport: 1280 × 720. Mobile viewport: 390 × 844. No horizontal page overflow. The glass game card is horizontally centred; height is bounded on small windows.

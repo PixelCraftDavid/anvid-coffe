@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'motion/react';
-import { ArrowUpRight, ArrowRight, Coffee, Fingerprint, Check, Star, Download, RotateCcw, Volume2, VolumeX, Vibrate, VibrateOff, Heart, ExternalLink } from 'lucide-react';
-import { cafe, readSaved, saveLocal, createPreviewPlay } from './config';
+import { ArrowUpRight, ArrowRight, Coffee, Fingerprint, Check, Star, Download, Volume2, VolumeX, Vibrate, VibrateOff, Heart, ExternalLink } from 'lucide-react';
+import { cafe, readSaved, saveLocal } from './config';
+import { ensureCoffeeSession, loadCoffeeState, revealCoffee, submitCoffeeReview } from './coffeeApi.js';
 import FluidBackdrop from './FluidBackdrop';
 import CafeReviews from './CafeReviews';
 import CoffeeObjects from './CoffeeObjects';
@@ -30,7 +31,7 @@ function Action({ children, onClick, className = '', light = false, ...props }) 
   return <button onClick={onClick} className={`action ${light ? 'action-light' : ''} ${className}`} {...props}><span>{children}</span><span className="action-arrow"><ArrowUpRight size={20} strokeWidth={1.5}/></span></button>;
 }
 
-function ScratchSurface({ play, onReveal, sound = false, onScratchStart, haptics }) {
+function ScratchSurface({ pending, onReveal, sound = false, onScratchStart, haptics }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const previous = useRef(null);
@@ -135,7 +136,7 @@ function ScratchSurface({ play, onReveal, sound = false, onScratchStart, haptics
   }
   return <div className="scratch-area-wrap">
     <div className={`scratch-area ${touching ? 'is-scratching' : ''}`}>
-      <div className="scratch-under" aria-hidden="true"><Coffee size={46} strokeWidth={1}/><span>{play.won ? 'Este café va por nosotros.' : 'El ritual continúa.'}</span><p>{play.won ? 'Un café de cortesía para ti' : 'Gracias por compartir este momento'}</p></div>
+      <div className="scratch-under" aria-hidden="true"><Coffee size={46} strokeWidth={1}/><span>Un momento para ti.</span><p>{pending ? 'Descubriendo tu tarjeta…' : 'La suerte está por descubrirse'}</p></div>
       <motion.canvas ref={canvasRef} className="scratch-canvas" aria-label="Área para raspar con el dedo o el mouse. También puedes usar el botón Descubrir sin raspar."
         animate={{ opacity: progress === 100 ? 0 : 1 }} transition={{ duration: 0.25 }}
         onPointerDown={e => { if (!ready || finished.current || activePointer.current!==null || e.isPrimary===false || e.button>0) return; const canPlay=onScratchStart?.() ?? sound;scratchSound.current?.dispose();scratchSound.current=canPlay?createScratchSound():null; activePointer.current=e.pointerId;drawing.current = true; setTouching(true); previous.current = null; e.currentTarget.setPointerCapture(e.pointerId); erase(e); }}
@@ -143,7 +144,7 @@ function ScratchSurface({ play, onReveal, sound = false, onScratchStart, haptics
         onPointerMove={erase} onPointerUp={endStroke} onPointerCancel={endStroke} onLostPointerCapture={endStroke} onPointerLeave={pauseStroke}/>
     </div>
     <div className="scratch-progress"><div className="progress-track"><motion.div animate={{ transform: `scaleX(${progress / 100})` }} transition={{ duration: 0.15 }}/></div><span>{progress}%</span></div>
-    <div className="scratch-helper"><span><Fingerprint size={17}/> Tu dedo es la moneda.</span><button className="text-button" onClick={finish}>Descubrir sin raspar <ArrowUpRight size={14}/></button></div>
+    <div className="scratch-helper"><span><Fingerprint size={17}/> Tu dedo es la moneda.</span><button className="text-button" disabled={pending} onClick={finish}>{pending ? 'Descubriendo…' : 'Descubrir sin raspar'} <ArrowUpRight size={14}/></button></div>
   </div>;
 }
 
@@ -162,40 +163,42 @@ function savePass(play) {
   ctx.font = '90px Georgia'; ctx.fillText('anvid coffe', 540, 245);
   ctx.font = '24px sans-serif'; ctx.fillText('UN PEQUEÑO GOLPE DE SUERTE', 540, 315);
   ctx.font = 'italic 86px Georgia'; ctx.fillText('Un café para ti.', 540, 600);
-  ctx.font = '30px sans-serif'; ctx.fillText('PASE DE DEMOSTRACIÓN', 540, 740);
+  ctx.font = '30px sans-serif'; ctx.fillText('CUPÓN DE CAFÉ', 540, 740);
   ctx.font = 'bold 46px monospace'; ctx.fillText(play.code, 540, 850);
   const timestamp=formatPrizeTimestamp(play.wonAt);
   ctx.font = '30px sans-serif'; ctx.fillText(timestamp ? `Ganado el ${timestamp.date}` : 'Fecha no registrada · pase anterior',540,940);
   if(timestamp) {ctx.font='28px sans-serif';ctx.fillText(`${timestamp.time} · ${timestamp.zone}`,540,993);}
-  ctx.font = '25px sans-serif'; ctx.fillText('Sin valor de canje. Vista previa de la experiencia.', 540, 1070);
+  ctx.font = '25px sans-serif'; ctx.fillText('Muéstralo al equipo de Anvid Coffe.', 540, 1070);
   ctx.font = 'italic 36px Georgia'; ctx.fillText('La suerte también se toma.', 540, 1210);
-  canvas.toBlob(blob => { if (!blob) return; const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'mi-pase-anvid-demo.png'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
+  canvas.toBlob(blob => { if (!blob) return; const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mi-cupon-${play.code}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
 }
 
-function ReviewForm({ onDone, compact = false, doneLabel = 'Volver a la experiencia' }) {
-  const saved = readSaved().review;
-  const [rating, setRating] = useState(0);
+function ReviewForm({ onDone, saved, onSaved, compact = false, doneLabel = 'Volver a la experiencia' }) {
+  const [rating, setRating] = useState(saved?.rating || 0);
   const [hovered, setHovered] = useState(0);
-  const [comment, setComment] = useState('');
+  const [comment, setComment] = useState(saved?.comment || '');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [pending, setPending] = useState(false);
+  const submitting = useRef(false);
   const [attributes, setAttributes] = useState([]);
   const labels = ['No fue para mí', 'Podría mejorar', 'Estuvo bien', 'Me gustó mucho', 'Me encantó'];
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
+    if (submitting.current) return;
     if (!rating) { setError('Selecciona una calificación para tu café.'); return; }
-    const review = { rating, comment: comment.trim(), attributes, createdAt: new Date().toISOString() };
-    const ok = saveLocal({ review, reviews: [review] });
-    if (!ok) { setError('No pudimos guardar en este navegador. Habilita el almacenamiento e inténtalo de nuevo.'); return; }
-    setSubmitted(true);
+    submitting.current = true; setPending(true); setError('');
+    try { const {review} = await submitCoffeeReview(rating, comment); onSaved?.(review); setSubmitted(true); }
+    catch (error) { setError(error.message); }
+    finally { submitting.current = false; setPending(false); }
   }
-  if (submitted) return <motion.div className="review-thanks" initial={{ opacity: 0, transform: 'translateY(8px)' }} animate={{ opacity: 1, transform: 'translateY(0px)' }}><span className="success-icon"><Heart size={28} strokeWidth={1}/></span><h3>Tu opinión es parte<br/><em>del próximo café.</em></h3><p>Gracias por contarnos cómo estuvo. Esta reseña de prueba se guardó solo en tu navegador.</p>{cafe.googleReviewUrl && <a className="action" href={cafe.googleReviewUrl} target="_blank" rel="noreferrer"><span>Compartir mi opinión en Google</span><ExternalLink size={18}/></a>}{onDone && <button className="text-button" onClick={onDone}>{doneLabel} <ArrowRight size={15}/></button>}</motion.div>;
+  if (submitted) return <motion.div className="review-thanks" initial={{ opacity: 0, transform: 'translateY(8px)' }} animate={{ opacity: 1, transform: 'translateY(0px)' }}><span className="success-icon"><Heart size={28} strokeWidth={1}/></span><h3>Tu opinión es parte<br/><em>del próximo café.</em></h3><p>Gracias por contarnos cómo estuvo. Tu reseña ya está guardada y puede ayudar a otros a elegir su próximo café.</p>{cafe.googleReviewUrl && <a className="action" href={cafe.googleReviewUrl} target="_blank" rel="noreferrer"><span>Compartir mi opinión en Google</span><ExternalLink size={18}/></a>}{onDone && <button className="text-button" onClick={onDone}>{doneLabel} <ArrowRight size={15}/></button>}</motion.div>;
   return <form onSubmit={submit} className={`review-form ${compact ? 'review-compact' : ''}`}>
-    <fieldset><legend>¿Qué tal estuvo tu café?</legend><div className="rating-stars" onMouseLeave={() => setHovered(0)}>{[1, 2, 3, 4, 5].map(n => <label key={n} onMouseEnter={() => setHovered(n)} className={n <= (hovered || rating) ? 'star-active' : ''}><input type="radio" name="coffee-rating" value={n} checked={rating === n} onChange={() => { setRating(n); setError(''); }} aria-label={`${n} ${n === 1 ? 'estrella' : 'estrellas'}: ${labels[n - 1]}`}/><Star size={32} strokeWidth={1.3}/></label>)}</div><span className="rating-label" aria-live="polite">{hovered || rating ? labels[(hovered || rating) - 1] : 'Tu experiencia, con toda honestidad.'}</span></fieldset>
+    <fieldset disabled={pending}><legend>¿Qué tal estuvo tu café?</legend><div className="rating-stars" onMouseLeave={() => setHovered(0)}>{[1, 2, 3, 4, 5].map(n => <label key={n} onMouseEnter={() => setHovered(n)} className={n <= (hovered || rating) ? 'star-active' : ''}><input type="radio" name="coffee-rating" value={n} checked={rating === n} onChange={() => { setRating(n); setError(''); }} aria-label={`${n} ${n === 1 ? 'estrella' : 'estrellas'}: ${labels[n - 1]}`}/><Star size={32} strokeWidth={1.3}/></label>)}</div><span className="rating-label" aria-live="polite">{hovered || rating ? labels[(hovered || rating) - 1] : 'Tu experiencia, con toda honestidad.'}</span></fieldset>
     {!compact && <fieldset className="attributes"><legend>¿Qué te dejó una buena impresión? <span>Opcional</span></legend><div>{['El sabor', 'El aroma', 'La preparación', 'La atención'].map(attribute => <button type="button" key={attribute} aria-pressed={attributes.includes(attribute)} className={attributes.includes(attribute) ? 'selected' : ''} onClick={() => setAttributes(old => old.includes(attribute) ? old.filter(a => a !== attribute) : [...old, attribute])}>{attribute}{attributes.includes(attribute) && <Check size={13}/>}</button>)}</div></fieldset>}
     <label className="comment-label" htmlFor={compact ? 'coffee-comment-modal' : 'coffee-comment'}>Cuéntanos un poquito más <span>Opcional</span></label>
-    <textarea id={compact ? 'coffee-comment-modal' : 'coffee-comment'} placeholder="Ese primer sorbo, el aroma, algo que podríamos mejorar…" value={comment} onChange={e => setComment(e.target.value)} maxLength={600} rows={3}/>
-    <div className="review-form-bottom"><p>{cafe.demo ? 'Vista previa: tu opinión se guarda en este dispositivo.' : 'Tu reseña es voluntaria y no influye en los premios.'}{saved && <span> Puedes actualizar tu opinión anterior.</span>}</p><Action type="submit">Enviar mi opinión</Action></div>
+    <textarea disabled={pending} id={compact ? 'coffee-comment-modal' : 'coffee-comment'} placeholder="Ese primer sorbo, el aroma, algo que podríamos mejorar…" value={comment} onChange={e => setComment(e.target.value)} maxLength={600} rows={3}/>
+    <div className="review-form-bottom"><p>Tu calificación y comentario serán públicos. La reseña es voluntaria y no influye en los premios.{saved && <span> Puedes actualizar tu opinión anterior.</span>}</p><Action type="submit" disabled={pending}>{pending ? 'Guardando…' : 'Enviar mi opinión'}</Action></div>
     {error && <p className="form-error" role="alert">{error}</p>}
   </form>;
 }
@@ -204,15 +207,21 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(()=>!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [welcomeLanded,setWelcomeLanded]=useState(false);
   const sceneCupRef=useRef(null);
-  const [play, setPlay] = useState(() => readSaved().play || createPreviewPlay());
-  const [mode, setMode] = useState(() => readSaved().play?.revealed ? 'result' : 'scratch');
+  const [play, setPlay] = useState({revealed: false, code: 'today'});
+  const [mode, setMode] = useState('scratch');
+  const [connection, setConnection] = useState('loading');
+  const [connectionError, setConnectionError] = useState('');
+  const [ownReview, setOwnReview] = useState(null);
+  const [nextResetAt, setNextResetAt] = useState(null);
+  const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState('');
+  const revealPending = useRef(false);
   const [sound, setSound] = useState(()=>readSaved().soundMuted!==true);
   const soundAllowed=useRef(sound);
   const [vibration, setVibration] = useState(()=>readSaved().vibrationEnabled ?? !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const haptics=useRef(null);
   if (!haptics.current) haptics.current=createExperienceHaptics({enabled:vibration});
   const [savedPass, setSavedPass] = useState(false);
-  const [message, setMessage] = useState('');
   const [reviewOrigin, setReviewOrigin] = useState('result');
   const [winCelebration, setWinCelebration] = useState(0);
   const [showWinCelebration, setShowWinCelebration] = useState(false);
@@ -221,6 +230,23 @@ export default function App() {
   const welcomePreviouslyOpen=useRef(showWelcome);
   const firstRender = useRef(true);
   const step = mode === 'reviews' ? (play.revealed ? 1 : 0) : mode === 'scratch' ? 0 : mode === 'result' ? 1 : 2;
+
+  async function restoreState(initial = false) {
+    if(initial) {setConnection('loading');setConnectionError('');}
+    try {
+      const state = await (initial ? ensureCoffeeSession() : loadCoffeeState());
+      setPlay(state.coupon || {revealed:false,code:state.day}); setOwnReview(state.review); setNextResetAt(state.nextResetAt);setConnection('ready');
+      setMode(current => ['scratch','result'].includes(current) ? (state.coupon ? 'result' : 'scratch') : current);
+    } catch(error) {setConnectionError(error.message); if(initial) setConnection('error');}
+  }
+  useEffect(()=>{restoreState(true);},[]);
+  useEffect(()=>{
+    if(!nextResetAt) return;
+    const due = () => {if(Date.now() >= Date.parse(nextResetAt) && !revealPending.current) restoreState();};
+    const timer = setTimeout(due,Math.max(500,Date.parse(nextResetAt)-Date.now()+1000));
+    document.addEventListener('visibilitychange',due);
+    return ()=>{clearTimeout(timer);document.removeEventListener('visibilitychange',due);};
+  },[nextResetAt]);
 
   useEffect(()=>{
     const wasOpen=welcomePreviouslyOpen.current;
@@ -243,15 +269,17 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [mode, reduce]);
 
-  function reveal() {
-    const next = { ...play, revealed: true, ...(play.won ? {wonAt:play.wonAt || new Date().toISOString()} : {}) }; setPlay(next); saveLocal({ play: next });
-    if (next.won) { haptics.current.win({reducedMotion:!!reduce});setWinCelebration(previous => previous + 1); setShowWinCelebration(true); }
-    if (prepareInteractionSound() && !next.won) playResultTone(false);
-    setMode('result');
-  }
-  function restart(won) {
-    haptics.current.stop();
-    setPlay(createPreviewPlay(won)); setMode('scratch'); setSavedPass(false); setMessage('');
+  async function reveal() {
+    if(revealPending.current || play.revealed) return;
+    prepareInteractionSound();revealPending.current=true;setRevealing(true);setRevealError('');
+    try {
+      const outcome = await revealCoffee();const next=outcome.coupon;
+      setPlay(next);setNextResetAt(outcome.nextResetAt);setSavedPass(false);
+      if(next.won && outcome.isNew) {haptics.current.win({reducedMotion:!!reduce});setWinCelebration(previous=>previous+1);setShowWinCelebration(true);}
+      if(soundAllowed.current && !next.won) playResultTone(false);
+      setMode('result');
+    } catch(error) {setRevealError(error.message);}
+    finally {revealPending.current=false;setRevealing(false);}
   }
   function prepareInteractionSound() {
     if(!soundAllowed.current) return false;
@@ -265,24 +293,27 @@ export default function App() {
   const enter = { opacity: 0, transform: reduce ? 'none' : 'translateY(12px)' };
   const visible = { opacity: 1, transform: 'translateY(0px)' };
 
-  return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio" data-welcome-stage={showWelcome?(welcomeLanded?'landing':'intro'):'complete'}>
-    <div className="game-backdrop" aria-hidden="true"><FluidBackdrop/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><div className="ambient-light"><i/><i/><i/></div><span className="backdrop-wordmark">ANVID</span><CoffeeObjects anchorRef={sceneCupRef} celebration={winCelebration} won={play.revealed && play.won}/><div className="coffee-vignette"/><div className="film-grain"/></div>
+  return <MotionConfig reducedMotion="user"><div className="game-shell" id="inicio" data-celebrating={showWinCelebration?'true':'false'} data-welcome-stage={showWelcome?(welcomeLanded?'landing':'intro'):'complete'}>
+    <div className="game-backdrop" aria-hidden="true"><FluidBackdrop paused={showWinCelebration}/><img src="/images/anvid-scene.webp" alt="" fetchPriority="high"/><div className="ambient-light"><i/><i/><i/></div><span className="backdrop-wordmark">ANVID</span><CoffeeObjects anchorRef={sceneCupRef} celebration={winCelebration} won={play.revealed && play.won}/><div className="coffee-vignette"/><div className="film-grain"/></div>
     <header className="game-header"><Logo light/><div className="experience-controls">{haptics.current.supported && <button className="sound-control haptic-control" onClick={toggleVibration} aria-label={vibration ? 'Desactivar vibración' : 'Activar vibración'} aria-pressed={vibration} title="Vibración en celulares compatibles">{vibration ? <Vibrate size={18} strokeWidth={1.5}/> : <VibrateOff size={18} strokeWidth={1.5}/>}<span>Vibración {vibration ? 'activada' : 'desactivada'}</span></button>}<button className="sound-control" onClick={toggleSound} aria-label={sound ? 'Desactivar sonido' : 'Activar sonido'} aria-pressed={sound}>{sound ? <Volume2 size={18} strokeWidth={1.5}/> : <VolumeX size={18} strokeWidth={1.5}/>}<span>Sonido {sound ? 'activado' : 'desactivado'}</span></button></div></header>
     <main className="game-main">
       <motion.div layout className="single-game-card" initial={enter} animate={visible} transition={{ duration: 0.6, ease, layout: { duration: .25, ease } }}>
         <LiquidGlass/>
         <ol className="game-steps" aria-label="Tu experiencia">{['Raspa', 'Descubre', 'Opina'].map((label, i) => <li key={label} className={i === step ? 'current' : i < step ? 'complete' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Check size={11}/> : `0${i + 1}`}</span>{label}</li>)}</ol>
         <AnimatePresence mode="wait" initial={false}>
-          {mode === 'scratch' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
+          {mode === 'scratch' && connection !== 'ready' && <motion.section key="connection" initial={enter} animate={visible} exit={{opacity:0}} className="game-face connection-face" aria-busy={connection === 'loading'}><Coffee size={30} strokeWidth={1}/><h1 ref={titleRef} tabIndex={-1}>Tu pausa<br/><em>empieza aquí.</em></h1><p className="screen-description" role="status">{connection === 'loading' ? 'Preparando tu tarjeta de hoy…' : connectionError}</p>{connection === 'error' && <Action onClick={()=>restoreState(true)}>Volver a intentar</Action>}</motion.section>}
+          {mode === 'scratch' && connection === 'ready' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
             <h1 ref={titleRef} tabIndex={-1}>¿Y si hoy<br/><em>te toca a ti?</em></h1>
             <p className="screen-description">Raspa la tarjeta. Tu próximo café<br/>podría ir por nuestra cuenta.</p>
-            <div className="standalone-ticket"><ScratchSurface key={play.code} play={play} sound={sound} haptics={haptics.current} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
+            <div className="standalone-ticket" aria-busy={revealing}><ScratchSurface key={play.code} pending={revealing} sound={sound} haptics={haptics.current} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
+            <p className="daily-prize-note">Máximo un café ganador al día entre todos.<br/>Una tarjeta diaria por navegador · reinicio a medianoche (UTC−6).</p>
+            {revealError && <div className="api-inline-error" role="alert"><p>{revealError}</p><button className="text-button" onClick={reveal}>Reintentar mi resultado <ArrowRight size={14}/></button></div>}
             <div className="game-face-signature"><Coffee size={15} strokeWidth={1.2}/><span>UN PEQUEÑO RITUAL DE ANVID COFFE</span></div>
           </motion.section>}
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
             {play.won && <Confetti/>}
             {play.won ? <><h1 ref={titleRef} tabIndex={-1}>Hoy invita<br/><em>la suerte.</em></h1><p className="screen-description">¡Ganaste un café de cortesía!<br/>Guarda este pequeño golpe de suerte.</p></> : <div className="loss-coupon"><span className="loss-coupon-brand">anvid <small>coffe</small></span><h1 ref={titleRef} tabIndex={-1}>Hoy no tocó.<br/><em>Lo bonito sigue.</em></h1><p>Esta tarjeta no tenía premio.<br/>Ojalá este café te regale una pausa bonita.<br/>Que hoy encuentres una razón para sonreír.</p><span className="loss-coupon-bottom">UN MOMENTO BONITO TAMBIÉN CUENTA.</span></div>}
-            {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>PASE DE DEMOSTRACIÓN · SIN VALOR DE CANJE</small></span></div><span className="mini-prize-code">{play.code}</span><PrizeTimestamp value={play.wonAt}/><button className="text-button" onClick={() => { savePass(play); setSavedPass(true); }}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {savedPass ? 'Pase guardado · descargar otra vez' : 'Guardar mi pase'}</button></div>}
+            {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>CUPÓN DE CAFÉ · ANVID COFFE</small></span></div><span className="mini-prize-code">{play.code}</span><PrizeTimestamp value={play.wonAt}/><button className="text-button" onClick={() => { savePass(play); setSavedPass(true); }}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {savedPass ? 'Cupón guardado · descargar otra vez' : 'Guardar mi cupón'}</button></div>}
             <div className="result-review-prompt"><Action onClick={() => openReview('result')}>Dejar una reseña de mi café</Action></div>
             <span className="result-footnote">Tu opinión es sobre el café que probaste.</span>
           </motion.section>}
@@ -291,14 +322,14 @@ export default function App() {
             <button className="back-to-result" onClick={() => setMode(reviewOrigin)}><ArrowRight size={14}/> {reviewOrigin === 'reviews' ? 'Reseñas del café' : 'Mi resultado'}</button>
             <h1 ref={titleRef} tabIndex={-1}>Hablemos de<br/><em>tu café.</em></h1>
             <p className="screen-description">Ese primer sorbo. El aroma. El sabor.<br/>Nos encantaría saber qué te pareció.</p>
-            <ReviewForm compact onDone={() => setMode('reviews')} doneLabel="Ver reseñas del café"/>
+            <ReviewForm compact saved={ownReview} onSaved={setOwnReview} onDone={() => setMode('reviews')} doneLabel="Ver reseñas del café"/>
           </motion.section>}
           {mode === 'reviews' && <motion.section key="reviews" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face reviews-face"><CafeReviews titleRef={titleRef} onBack={() => setMode(play.revealed ? 'result' : 'scratch')} onWrite={() => openReview('reviews')}/></motion.section>}
         </AnimatePresence>
         <div className="card-bottom-mark">{mode !== 'reviews' ? <button className="view-reviews-link" onClick={() => setMode('reviews')}><Star size={11} strokeWidth={1.2}/> Ver reseñas del café <ArrowUpRight size={11}/></button> : <span>OPINIONES DEL CAFÉ</span>}<Flower/><span>COFFEE. LUCK. REPEAT.</span></div>
       </motion.div>
     </main>
-    <footer className="game-footer"><span>Buen café. Pequeños rituales.</span><details className="preview-options"><summary>Modo demostración <span>+</span></summary><div><p>Premios de muestra, sin valor de canje.<br/>Las reseñas se guardan en este dispositivo.</p><button onClick={() => restart(true)}><RotateCcw size={13}/> Probar tarjeta con premio</button><button onClick={() => restart(false)}><RotateCcw size={13}/> Probar tarjeta sin premio</button><button onClick={event=>{event.currentTarget.closest('details').open=false;prepareInteractionSound();setShowWelcome(true);}}><RotateCcw size={13}/> Repetir bienvenida</button><button onClick={() => { try { localStorage.removeItem(cafe.storageKey); setPlay(createPreviewPlay()); setMode('scratch'); setMessage('Tu reseña de prueba fue eliminada. Se creó una tarjeta nueva.'); } catch { setMessage('No se pudo acceder al almacenamiento.'); } }}>Borrar mi reseña de prueba</button>{message && <p role="status">{message}</p>}</div></details></footer>
+    <footer className="game-footer" aria-hidden="true"/>
     {showWinCelebration && <WinCelebration resultTitleRef={titleRef} wonAt={play.wonAt} sound={sound} onToggleSound={toggleSound} onClose={() => {haptics.current.stop();setShowWinCelebration(false);}}/>}
     {showWelcome && <CoffeeWelcome sceneCupRef={sceneCupRef} onLanding={()=>setWelcomeLanded(true)} sound={sound} onToggleSound={toggleSound} onPrepareSound={prepareInteractionSound} onComplete={()=>{setShowWelcome(false);setWelcomeLanded(false);}}/>}
   </div></MotionConfig>;

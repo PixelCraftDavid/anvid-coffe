@@ -20,18 +20,32 @@ export default function WinCelebration({ onClose, resultTitleRef, wonAt, sound, 
   const reduce = useReducedMotion();
   const epochRef=useRef(0);
   const stopAudioRef=useRef(null);
+  const [assetsReady,setAssetsReady]=useState(false);
+  const [cupFailed,setCupFailed]=useState(false);
   const lead=reduce?0:WIN.leadIn/1000;
   const close=()=>{stopAudioRef.current?.();onClose();};
   const [compact, setCompact] = useState(() => window.matchMedia('(max-width:620px)').matches);
 
-  useLayoutEffect(()=>{epochRef.current=performance.now()+WIN.leadIn;},[]);
+  useEffect(()=>{
+    let active=true;
+    const decode=src=>new Promise((resolve,reject)=>{
+      const image=new Image();
+      image.onload=()=>{if(image.decode) image.decode().then(resolve,reject);else resolve();};
+      image.onerror=reject;image.src=src;
+    });
+    Promise.allSettled(['/images/anvid-open-cup.webp','/images/anvid-lid.webp'].map(decode)).then(results=>{
+      if(active){setCupFailed(results[0].status==='rejected');setAssetsReady(true);}
+    });
+    return()=>{active=false;};
+  },[]);
+  useLayoutEffect(()=>{if(assetsReady)epochRef.current=performance.now()+WIN.leadIn;},[assetsReady]);
 
   useEffect(()=>{
-    if(!sound) return;
+    if(!sound || !assetsReady) return;
     const stop=scheduleWinCelebrationAudio(epochRef.current,!!reduce);
     stopAudioRef.current=stop;
     return ()=>{stop();if(stopAudioRef.current===stop) stopAudioRef.current=null;};
-  },[sound,reduce]);
+  },[sound,reduce,assetsReady]);
 
   useEffect(() => {
     const query = window.matchMedia('(max-width:620px)');
@@ -51,24 +65,27 @@ export default function WinCelebration({ onClose, resultTitleRef, wonAt, sound, 
   }, [resultTitleRef]);
 
   return <dialog ref={dialogRef} className="celebration-dialog" aria-labelledby="celebration-title" aria-describedby="celebration-description" onCancel={event => { event.preventDefault(); close(); }}>
-    <div className="party-lights" aria-hidden="true"><i/><i/><i/><i/></div>
-    <motion.div className="win-theatre" initial={{ opacity: 0, transform: reduce ? 'none' : 'translateY(18px) scale(.96)' }} animate={{ opacity: 1, transform: 'translateY(0px) scale(1)' }} transition={{ duration: .3, delay:lead, ease }}>
+    <div className="win-theatre">
+      <div className="win-theatre-glass" aria-hidden="true"/>
+      <div className="party-lights" aria-hidden="true"><i/><i/><i/><i/></div>
       <button className="celebration-sound" onClick={onToggleSound} aria-label={sound?'Silenciar celebración':'Activar sonido de la celebración'} aria-pressed={sound}>{sound?<Volume2 size={16} strokeWidth={1.5}/>:<VolumeX size={16} strokeWidth={1.5}/>}</button>
       <button className="celebration-close" onClick={close} aria-label="Cerrar celebración y ver mi premio"><X size={18} strokeWidth={1.5}/></button>
       <header className="win-theatre-heading"><h2 id="celebration-title">¡Ganaste<br/><em>un café!</em></h2><p id="celebration-description">Hoy invitamos nosotros.<br/>Tú disfruta este pequeño golpe de suerte.</p></header>
       <div className="celebration-stage" aria-hidden="true">
-        {!reduce && <div className="balloon-launch">{balloonColours.map((colour, i) => <motion.div className="party-balloon" key={colour} initial={{ opacity: 0, transform: 'translate(calc(-50% + 0px), 45px) rotate(0deg) scale(.5)' }} animate={{ opacity: 1, transform: `translate(calc(-50% + ${balloonTargets[i][0] * (compact ? .7 : 1)}px), ${balloonTargets[i][1]}px) rotate(${(i - 3) * 5}deg) scale(1)` }} transition={{ duration: 2.8 + i * .1, delay: lead+(WIN.balloons+i*WIN.balloonStagger)/1000, ease, opacity: { duration: .5, delay: lead+(WIN.balloons+i*WIN.balloonStagger)/1000 } }}><Balloon index={i} colour={colour}/></motion.div>)}</div>}
-        {!reduce && <div className="cup-confetti">{Array.from({length:52},(_,i) => {
+        {assetsReady && !reduce && <div className="balloon-launch">{balloonColours.map((colour, i) => <motion.div className="party-balloon" key={colour} initial={{ opacity: 0, transform: 'translate(calc(-50% + 0px), 45px) rotate(0deg) scale(.5)' }} animate={{ opacity: 1, transform: `translate(calc(-50% + ${balloonTargets[i][0] * (compact ? .7 : 1)}px), ${balloonTargets[i][1]}px) rotate(${(i - 3) * 5}deg) scale(1)` }} transition={{ duration: 2.8 + i * .1, delay: lead+(WIN.balloons+i*WIN.balloonStagger)/1000, ease, opacity: { duration: .5, delay: lead+(WIN.balloons+i*WIN.balloonStagger)/1000 } }}><Balloon index={i} colour={colour}/></motion.div>)}</div>}
+        {assetsReady && !reduce && <div className="cup-confetti">{Array.from({length:compact?28:52},(_,i) => {
           const direction = Math.sin(i * 2.4), reach = 90 + i % 11 * 17;
           return <motion.i key={i} style={{ backgroundColor: ['#e9d28d','#cadfa9','#eadcc9','#b6d6c9','#d8a5a0'][i%5], width: i%3===0?5:7, height:i%3===0?10:5 }} initial={{ opacity: 0, transform:'translate(0px, 0px) rotate(0deg)' }} animate={{ opacity:[0,1,1,0], transform:[`translate(0px, 0px) rotate(0deg)`,`translate(${direction*reach*.65}px, ${-100-i%7*15}px) rotate(${i*37}deg)`,`translate(${direction*reach}px, ${-30+i%5*15}px) rotate(${i*53}deg)`,`translate(${direction*reach*1.2}px, 320px) rotate(${i*79}deg)`] }} transition={{ duration:2.5+i%5*.12, delay:lead+(WIN.confetti+i%8*WIN.confettiStagger)/1000, times:[0,.25,.5,1], ease:'linear' }}/>;
         })}</div>}
-        <motion.div className="celebration-cup" initial={{ opacity:0, transform:reduce?'none':'translate(-50%, 65px) rotate(-15deg) scale(.7)' }} animate={{ opacity:1, transform:'translate(-50%, 0px) rotate(0deg) scale(1)' }} transition={reduce?{duration:.2}:{type:'spring',duration:.7,bounce:.25,delay:lead}}>
+        {assetsReady && !cupFailed && <motion.div className="celebration-cup" initial={{ opacity:0, transform:reduce?'translate(-50%, 0px)':'translate(-50%, 65px) rotate(-15deg) scale(.7)' }} animate={{ opacity:1, transform:'translate(-50%, 0px) rotate(0deg) scale(1)' }} transition={reduce?{duration:.2}:{type:'spring',duration:.7,bounce:.25,delay:lead}}>
           <img className="celebration-cup-body" src="/images/anvid-open-cup.webp" alt="" draggable="false"/>
-          <motion.img className="celebration-lid" src="/images/anvid-lid.webp" alt="" draggable="false" initial={{ transform:'translate(0px, 0px) rotate(0deg)',opacity:1 }} animate={reduce?{opacity:0}:{transform:'translate(145px, -15px) rotate(24deg)',opacity:[1,1,.85]}} transition={reduce?{duration:.2}:{type:'spring',duration:1.1,bounce:.24,delay:lead+WIN.lid/1000}}/>
+          <motion.img className="celebration-lid" src="/images/anvid-lid.webp" alt="" draggable="false" initial={{ transform:'translate(0px, 0px) rotate(0deg)',opacity:1 }} animate={reduce?{opacity:0}:{transform:`translate(${compact?54:100}px, -38px) rotate(24deg)`,opacity:[1,1,.85]}} transition={reduce?{duration:.2}:{type:'spring',duration:1.1,bounce:.24,delay:lead+WIN.lid/1000}}/>
           <span className="cup-celebration-glow"/>
-        </motion.div>
+        </motion.div>}
+        {!assetsReady && <span className="celebration-loading">Tu café está llegando…</span>}
+        {cupFailed && <span className="celebration-loading">Un café para alegrarte el día.</span>}
       </div>
-      <footer className="win-theatre-footer"><PrizeTimestamp value={wonAt}/><button ref={continueRef} className="action" onClick={close}><span>Ver mi premio</span><span className="action-arrow"><ArrowUpRight size={19}/></span></button><p>ANVID COFFE · CELEBRACIÓN DE DEMOSTRACIÓN</p></footer>
-    </motion.div>
+      <footer className="win-theatre-footer"><PrizeTimestamp value={wonAt}/><button ref={continueRef} className="action" onClick={close}><span>Ver mi premio</span><span className="action-arrow"><ArrowUpRight size={19}/></span></button><p>UN CAFÉ. UN PEQUEÑO GOLPE DE SUERTE.</p></footer>
+    </div>
   </dialog>;
 }
