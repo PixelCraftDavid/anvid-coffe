@@ -19,7 +19,7 @@ Se usan los planes gratuitos elegidos por el propietario, sujetos a sus cuotas, 
 
 ## Cupones y opiniones
 
-- Máximo un café ganador al día entre todos los participantes, con fechas del servidor y cambio de día a medianoche UTC−6. La probabilidad es del 35% mientras el premio no esté asignado; luego todos los intentos de ese día pierden. Puede haber cero ganadores.
+- Máximo un café ganador al día entre todos los participantes, con fechas del servidor y cambio de día a medianoche UTC−6. La probabilidad es de 1 entre 15 (≈6,67 %) por intento mientras el premio no esté asignado; luego todos los intentos de ese día pierden. Son intentos independientes: 15 participaciones no garantizan un ganador y puede haber cero ganadores.
 - Una transacción Firestore crea el cupón y reserva el único premio diario de manera atómica. Reintentos del mismo navegador/día devuelven el mismo resultado. El cliente no decide si gana ni proporciona la fecha o el código.
 - Una cookie firmada HttpOnly identifica el navegador y conserva una tarjeta diaria. Borrar cookies o cambiar de navegador crea otra identidad; el límite global de un premio permanece. No se incluye validación de compras.
 - El cupón ganador y su PNG incluyen un QR local, sin servicios externos. El panel privado valida el código y lo marca una sola vez como canjeado en una transacción. Acceso por contraseña privada del servidor, sesión firmada y revocable, protección de origen y límite de intentos. Ver [ADMIN_GUIDE.md](ADMIN_GUIDE.md) para configurar y usar el dashboard 2D/3D.

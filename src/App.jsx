@@ -313,7 +313,7 @@ export default function App() {
             <h1 ref={titleRef} tabIndex={-1}>¿Y si hoy<br/><em>te toca a ti?</em></h1>
             <p className="screen-description">Raspa la tarjeta. Tu próximo café<br/>podría ir por nuestra cuenta.</p>
             <div className="standalone-ticket" aria-busy={revealing}><ScratchSurface key={play.code} pending={revealing} sound={sound} haptics={haptics.current} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
-            <p className="daily-prize-note">Máximo un café ganador al día entre todos.<br/>Una tarjeta diaria por navegador · reinicio a medianoche (UTC−6).</p>
+            <p className="daily-prize-note">Una tarjeta diaria por navegador · reinicio a medianoche (UTC−6).</p>
             {revealError && <div className="api-inline-error" role="alert"><p>{revealError}</p><button className="text-button" onClick={reveal}>Reintentar mi resultado <ArrowRight size={14}/></button></div>}
             <div className="game-face-signature"><Coffee size={15} strokeWidth={1.2}/><span>UN PEQUEÑO RITUAL DE ANVID COFFE</span></div>
           </motion.section>}

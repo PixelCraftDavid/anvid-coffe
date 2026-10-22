@@ -21,7 +21,7 @@ export async function readState(db, participant, now = new Date()) {
   return { day, nextResetAt: nextReset(now), coupon: publicCoupon(coupon.data()), review: review.exists ? publicReview(review.data(), review.id, participant) : null };
 }
 
-export async function drawDailyCoupon(db, participant, { now = new Date(), candidateWins = randomInt(10000) < 3500 } = {}) {
+export async function drawDailyCoupon(db, participant, { now = new Date(), candidateWins = randomInt(15) === 0 } = {}) {
   const day = campaignDay(now);
   const couponRef = db.doc(`coupons/${day}_${participant}`);
   const dailyRef = db.doc(`dailyPrizes/${day}`);

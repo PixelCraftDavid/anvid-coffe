@@ -1,5 +1,11 @@
 # Verification
 
+## Scratch copy and 1-in-15 odds — 22 October 2026
+
+- The public scratch view no longer contains “Máximo un café ganador al día entre todos.” Its browser/day and UTC−6 reset note remains. At 390×844 the note was visible, the removed sentence was absent, and document client/scroll widths both measured 390px. Proof: ignored `.local/anvid-probabilidad-15-movil.png`.
+- The server now samples `randomInt(15) === 0` once per request, outside transaction retries. That gives an independent 1-in-15 candidate probability while the daily prize is available; it does not guarantee one winner in 15 attempts. The existing atomic daily slot still prevents a second winner, and previously issued coupons retain their original result.
+- All **22 tests passed without skips** against the official local Firestore emulator, including 20 concurrent draws with exactly one winner, repeat-participant idempotency, day reset, real single-use redemption and isolated TEST QR redemption. Production build and `git diff --check` passed. No real production draw or redemption was used for verification.
+
 ## Mobile map performance and isolated QR trials — 21 October 2026
 
 - Diagnosis from the prior implementation: 365 cell wrappers plus 1,095 face elements changed transforms at once; face filters and preserve-3d enlarged the layer/compositing cost. Pointer entry also rerendered the full React cell tree. The map now has one canvas, a batched inactive floor, only active bar faces, bounded DPR ≤1.5, one pending RAF at most, and no React state updates during animation/drag. It stops rendering when idle, offscreen or hidden. No new package was installed.
