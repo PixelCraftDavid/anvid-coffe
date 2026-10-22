@@ -1,11 +1,12 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
 import { campaignDay, nextReset, drawDailyCoupon, readState, writeReview, listReviews, validateReview } from '../server/coffeeStore.js';
 import { getParticipant, requireSameOrigin } from '../server/session.js';
 import handler from '../api/experience.js';
+import { ensureActivityDay, activityYear } from '../server/activityStore.js';
 
 test('el día cambia a las 06:00 UTC (medianoche UTC−6)', () => {
   assert.equal(campaignDay(new Date('2026-10-22T05:59:59.999Z')),'2026-10-21');
@@ -56,6 +57,7 @@ test('Firestore: 20 sorteos simultáneos entregan un único ganador global', {sk
   const prior=outcomes[0];const retry=await drawDailyCoupon(db,person(0),{now,candidateWins:!prior.coupon.won});
   assert.deepEqual(retry.coupon,prior.coupon);assert.equal(retry.isNew,false);
   assert.equal((await readState(db,person(0),now)).coupon.code,prior.coupon.code);
+  assert.equal((await db.doc('dailyActivity/2026-10-21').get()).data().count,20);
 });
 test('Firestore: el siguiente día tiene un cupo nuevo y perder no lo consume', {skip:!useEmulator},async()=>{
   const now=new Date('2026-10-22T06:00:00Z');
@@ -78,4 +80,20 @@ test('Firestore: reseñas públicas, actualizaciones y promedio sin duplicar vot
   const page=await listReviews(db,person('review-one'));assert.equal(page.reviews.length,20);assert.equal(page.count,23);assert.ok(page.nextCursor);
   const rest=await listReviews(db,person('review-one'),page.nextCursor);assert.equal(rest.reviews.length,3);assert.equal(rest.nextCursor,null);
   assert.equal(new Set([...page.reviews,...rest.reviews].map(r=>r.id)).size,23);
+});
+
+test('Firestore: el mapa anual migra cupones anteriores y no duplica participaciones', {skip:!useEmulator},async()=>{
+  const day='2026-10-19',now=new Date(`${day}T18:00:00Z`);
+  for(let i=1;i<=2;i++)await db.doc(`coupons/${day}_${person(`legacy-${i}`)}`).set({code:`ANV-${String(i).repeat(12)}`,day,won:false,createdAt:Timestamp.fromDate(now),wonAt:null});
+  await Promise.all(Array.from({length:8},()=>ensureActivityDay(db,day)));
+  const outcomes=await Promise.all(Array.from({length:10},(_,i)=>drawDailyCoupon(db,person(`activity-${i}`),{now,candidateWins:false})));
+  await drawDailyCoupon(db,person('activity-0'),{now,candidateWins:true});
+  assert.equal((await db.doc(`dailyActivity/${day}`).get()).data().count,12);
+  assert.equal(outcomes.filter(value=>value.isNew).length,10);
+  const year=await activityYear(db,'2026-10-22');
+  assert.equal(year.days.length,365);assert.equal(year.days.at(-1).day,'2026-10-22');
+  assert.equal(year.days.find(item=>item.day===day).count,12);
+  assert.equal(year.days.find(item=>item.day==='2026-10-20').count,0);
+  assert.equal(year.days.find(item=>item.day==='2026-10-21').count,20);
+  assert.equal(year.total,35);assert.equal(year.activeDays,3);assert.equal(year.incomplete,false);
 });

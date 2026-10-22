@@ -1,6 +1,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
+import { ensureActivityDay } from './activityStore.js';
 
 const dayMs = 86400000;
 const offsetMs = 6 * 3600000;
@@ -24,6 +25,7 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), candi
   const day = campaignDay(now);
   const couponRef = db.doc(`coupons/${day}_${participant}`);
   const dailyRef = db.doc(`dailyPrizes/${day}`);
+  await ensureActivityDay(db,day);
   // Draw once per request; transaction retries never draw again.
   const createdAt = Timestamp.fromDate(now);
   const code = `ANV-${randomBytes(6).toString('hex').toUpperCase()}`;
@@ -33,6 +35,7 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), candi
     const won = candidateWins && !daily.exists;
     const coupon = { code, day, won, createdAt, wonAt: won ? createdAt : null };
     transaction.create(couponRef, coupon);
+    transaction.set(db.doc(`dailyActivity/${day}`),{day,count:FieldValue.increment(1),version:1,updatedAt:createdAt},{merge:true});
     // Creation precondition + read conflict protects the one global slot.
     if (won) transaction.create(dailyRef, { code, couponId: couponRef.id, wonAt: createdAt });
     return { coupon, isNew: true };

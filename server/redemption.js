@@ -1,6 +1,7 @@
 import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
 import { campaignDay, publicCoupon } from './coffeeStore.js';
+import { activityYear } from './activityStore.js';
 
 export function normalizeCouponCode(input) {
   if(typeof input!=='string' || input.length>180) throw new ServiceError(400,'Escribe el código del cupón o escanea su QR.');
@@ -48,11 +49,12 @@ export async function couponPage(db,cursor) {
 }
 export async function adminDashboard(db,now=new Date()) {
   const days=Array.from({length:7},(_,i)=>campaignDay(new Date(now.getTime()-(6-i)*86400000)));
-  const [counts,prize,stats,redemptions,page,reviews]=await Promise.all([
-    Promise.all(days.map(async day=>({day,count:(await db.collection('coupons').where('day','==',day).count().get()).data().count}))),
+  const [year,prize,stats,redemptions,page,reviews]=await Promise.all([
+    activityYear(db,campaignDay(now)),
     db.doc(`dailyPrizes/${campaignDay(now)}`).get(),db.doc('stats/reviews').get(),db.doc('stats/redemptions').get(),couponPage(db),
     db.collection('reviews').orderBy('updatedAt','desc').limit(4).get(),
   ]);
   const reviewStats=stats.data()||{count:0,sum:0};
-  return {day:campaignDay(now),updatedAt:now.toISOString(),activity:counts,summary:{today:counts.at(-1).count,prizeAvailable:!prize.exists,redeemed:redemptions.data()?.count||0,reviewCount:reviewStats.count,average:reviewStats.count?reviewStats.sum/reviewStats.count:0},...page,reviews:reviews.docs.map(row=>({rating:row.data().rating,comment:row.data().comment,createdAt:row.data().createdAt.toDate().toISOString()}))};
+  const counts=year.days.filter(item=>days.includes(item.day));
+  return {day:campaignDay(now),updatedAt:now.toISOString(),activity:counts,activityYear:year,summary:{today:counts.at(-1).count||0,prizeAvailable:!prize.exists,redeemed:redemptions.data()?.count||0,reviewCount:reviewStats.count,average:reviewStats.count?reviewStats.sum/reviewStats.count:0},...page,reviews:reviews.docs.map(row=>({rating:row.data().rating,comment:row.data().comment,createdAt:row.data().createdAt.toDate().toISOString()}))};
 }

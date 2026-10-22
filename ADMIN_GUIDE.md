@@ -15,19 +15,20 @@ Abrir el enlace privado e introducir esa contraseña. La sesión dura 8 horas y 
 ## Entregar un café
 
 1. El cliente abre su QR en el cupón o muestra la imagen PNG descargada. Los cupones anteriores siguen siendo reconocibles por su código.
-2. En el panel, pulsar **Escanear QR** y permitir la cámara, usar **Leer QR desde una imagen**, o escribir el código `ANV-…`. La imagen se descodifica en el dispositivo; no se sube a un servicio externo.
+2. En el panel, pulsar **Escanear QR** y permitir la cámara, usar **Leer desde una imagen**, o escribir el código `ANV-…`. La imagen se descodifica en el dispositivo; no se sube a un servicio externo.
 3. Revisar el código, fecha y estado devueltos por Firebase. Solo **Disponible** permite canjear un premio. **Sin premio**, código inexistente o duplicado no autorizan entrega.
 4. Cuando se vaya a entregar el café, pulsar **Marcar como canjeado → Confirmar entrega**. El servidor vuelve a comprobar el cupón dentro de una transacción.
 5. Esperar el estado **Canjeado**, su fecha y la confirmación. Un QR copiado, un segundo teléfono o un doble clic no pueden producir otro canje. Si hubo un corte de red, volver a consultar el código antes de entregar otro café.
 
 No se definió una caducidad por el propietario, así que no se inventa una fecha de vencimiento. Un cupón ganador guardado puede canjearse en otra fecha si sigue sin utilizar. El sistema no verifica identidad ni compras; el cupón es un comprobante al portador. El acceso es compartido por el equipo con una sola contraseña, sin cuentas individuales de empleados.
 
-## Dashboard por capas
+## Dashboard y mapa por capas
 
-- La vista 2D prioriza consulta y canje. **Ver en 3D** despliega las áreas de resumen, actividad, historial y reseñas en niveles de profundidad. **Volver a 2D** revierte la transición.
-- La transición dura 280 ms con transformaciones CSS y un easing de salida; puede invertirse durante su recorrido. El escáner y la confirmación quedan estables. Movimiento reducido conserva una vista plana sin transición.
-- Los datos son reales: tarjetas del día, cupo diario, canjes desde la activación, actividad de siete días, cupones paginados y opiniones. **Actualizar** vuelve a consultarlos; no hay sondeos automáticos continuos. Los filtros se aplican a las páginas cargadas y **Cargar más cupones** permite ampliar la lista.
-- En celular el canje aparece primero y el historial después. La cámara se abre por acción del usuario y se detiene al cerrarla, leer un QR, cerrar sesión o desmontar su vista. La cámara física y sus permisos deben comprobarse en el dispositivo del propietario.
+- Tocar directamente el mapa anual lo convierte de 2D en 3D: las participaciones de cada día se elevan como columnas. Otro toque devuelve la vista plana. No hay un interruptor aparte. En 3D se puede arrastrar para girar. Las flechas consultan días; Enter o espacio cambian la perspectiva.
+- La transición dura 280 ms y puede invertirse durante su recorrido. El canje y su confirmación quedan estables. Movimiento reducido cambia la vista sin el recorrido animado.
+- Los datos son reales: tarjetas del día, cupo diario, canjes desde la activación, actividad de 365 días, cupones paginados y opiniones. **Actualizar** vuelve a consultarlos; no hay sondeos automáticos continuos. El mapa usa acumulados diarios y recupera los cupones anteriores sin duplicarlos. Una migración larga avanza 14 días por consulta y señala los días pendientes en vez de inventar ceros.
+- Los métodos de canje se abren desde controles compactos con un acordeón animado: **Escribir código**, **Escanear QR** y **Leer desde una imagen**. Las reseñas aparecen en tarjetas de estrellas, comentario y fecha, sin fotografías. Los comentarios largos pueden abrirse completos y la fila se desplaza manualmente.
+- En celular, el año plano se desplaza horizontalmente y su vista 3D se ajusta a la pantalla. La cámara se abre por acción del usuario y se detiene al cerrarla, leer un QR, ocultar la pestaña, cerrar sesión o desmontar su vista. La cámara física y sus permisos deben comprobarse en el dispositivo del propietario.
 
 ## Registros nuevos en Firestore
 
@@ -35,9 +36,10 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 - `stats/redemptions`: cantidad total de canjes registrados por el panel y última fecha.
 - `adminSessions`: identificadores derivados de nonces, creación, caducidad y revocación; no almacena cookies ni contraseñas.
 - `adminLoginAttempts`: contadores por ventana temporal y una huella HMAC del origen de red; no almacena IP en claro.
+- `dailyActivity`: una cantidad diaria derivada de los cupones, inicializada una vez y aumentada en la misma transacción que crea cada nueva participación. Restaurar una tarjeta no incrementa su cantidad.
 
 Las reglas de Firestore siguen cerradas. El servidor usa IAM y valida origen, contraseña, sesión, tamaño y código. Las respuestas privadas llevan `no-store`. La ruta tiene `noindex`, `no-referrer` y protección contra incrustación en marcos.
 
 ## Pruebas
 
-Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 15 pruebas, incluidas lectura de QR generados con un lector independiente, sesión/rotación/logout, acceso anónimo y origen ajeno, límite de intentos, 12 canjes concurrentes con exactamente una confirmación y protección de cupones sin premio o inválidos. No se crean ni canjean premios reales automáticamente.
+Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 16 pruebas, incluidas migración del mapa anual y cantidades sin duplicados, lectura de QR generados con un lector independiente, sesión/rotación/logout, acceso anónimo y origen ajeno, límite de intentos, 12 canjes concurrentes con exactamente una confirmación y protección de cupones sin premio o inválidos. No se crean ni canjean premios reales automáticamente.
