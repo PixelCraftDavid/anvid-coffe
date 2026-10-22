@@ -10,6 +10,7 @@ import {normalizeCouponCode,inspectCoupon,redeemCoupon,couponPage,adminDashboard
 import {drawDailyCoupon} from '../server/coffeeStore.js';
 import adminHandler from '../api/admin.js';
 import {firebaseConnection} from '../server/firebase.js';
+import {createTestCoupon,normalizeTestCode} from '../server/testCoupons.js';
 
 const privateTestPassword='Only-for-local-tests-2026!';
 test('contraseña privada obligatoria, comprobación exacta y comparación segura',()=>{
@@ -60,6 +61,24 @@ test('Firestore: cupones sin premio, inexistentes y duplicados no se canjean', {
   await db.doc('coupons/duplicate-test').set({...((await db.collection('coupons').where('code','==',coupon.code).get()).docs[0].data())});
   await assert.rejects(()=>redeemCoupon(db,coupon.code),{status:409});
 });
+
+test('Firestore: un QR TEST se canjea una sola vez y deja intactos premio, cupones y estadísticas reales', {skip:!emulator},async()=>{
+  const refs=['dailyPrizes/2026-10-21','dailyActivity/2026-10-21','stats/redemptions'].map(path=>db.doc(path));
+  const before=await db.getAll(...refs),count=(await db.collection('coupons').get()).size;
+  const coupon=await createTestCoupon(db,new Date('2026-10-21T20:00:00Z'));
+  assert.equal(coupon.test,true);assert.match(coupon.code,/^TEST-[A-F0-9]{12}$/);
+  const payload=`ANVID-TEST:${coupon.code}`;assert.equal(normalizeTestCode(payload),coupon.code);
+  assert.throws(()=>normalizeCouponCode(payload),{status:400});
+  assert.throws(()=>normalizeTestCode('ANVID:TEST-ABCDEF123456'),{status:400});
+  assert.throws(()=>normalizeTestCode('ANVID-TEST:ANV-ABCDEF123456'),{status:400});
+  assert.equal((await inspectCoupon(db,payload)).test,true);
+  const results=await Promise.allSettled(Array.from({length:12},()=>redeemCoupon(db,payload)));
+  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+  assert.ok(results.filter(result=>result.status==='rejected').every(result=>result.reason.status===409));
+  assert.ok((await inspectCoupon(db,coupon.code)).redeemedAt);
+  const after=await db.getAll(...refs);assert.deepEqual(after.map(row=>row.data()),before.map(row=>row.data()));
+  assert.equal((await db.collection('coupons').get()).size,count);
+});
 test('Firestore: límite de intentos de acceso y resumen privado con datos reales', {skip:!emulator},async()=>{
   const req={headers:{'x-forwarded-for':'127.0.0.10'}},key=Buffer.from('rate-test-key'),now=Date.parse('2026-10-21T18:00:00Z');
   for(let i=0;i<8;i++)await limitAdminLogin(db,req,key,now);
@@ -75,10 +94,12 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
   async function call(method,body,cookie='',origin=`http://${host}`){const headers={};let json;const req={method,url:'/api/admin?view=session',headers:{host,origin,'content-type':'application/json',cookie,'x-forwarded-for':testNetwork},body};const res={setHeader:(k,v)=>headers[k]=v,end:value=>json=JSON.parse(value)};await adminHandler(req,res);return {status:res.statusCode,headers,json};}
   try{
     assert.equal((await call('GET')).status,401);
+    assert.equal((await call('POST',{action:'createTestCoupon'})).status,401);
     assert.equal((await call('POST',{action:'login',password:privateTestPassword},'','http://attacker.test')).status,403);
     assert.equal((await call('POST',{action:'login',password:'incorrecta'})).status,401);
     const login=await call('POST',{action:'login',password:privateTestPassword});assert.equal(login.status,200);
     const cookie=login.headers['Set-Cookie'].split(';')[0];const state=await call('GET',undefined,cookie);assert.equal(state.status,200);assert.equal(state.json.authenticated,true);assert.match(state.headers['Cache-Control'],/no-store/);
+    const qrTest=await call('POST',{action:'createTestCoupon'},cookie);assert.equal(qrTest.status,200);assert.equal(qrTest.json.coupon.test,true);
     const logout=await call('POST',{action:'logout'},cookie);assert.equal(logout.status,200);assert.match(logout.headers['Set-Cookie'],/Max-Age=0/);
     assert.equal((await call('GET',undefined,cookie)).status,401);
     const secondLogin=await call('POST',{action:'login',password:privateTestPassword});assert.equal(secondLogin.status,200);const secondCookie=secondLogin.headers['Set-Cookie'].split(';')[0];

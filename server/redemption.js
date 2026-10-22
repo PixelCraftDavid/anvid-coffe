@@ -2,6 +2,7 @@ import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
 import { campaignDay, publicCoupon } from './coffeeStore.js';
 import { activityYear } from './activityStore.js';
+import { isTestCode,inspectTestCoupon,redeemTestCoupon } from './testCoupons.js';
 
 export function normalizeCouponCode(input) {
   if(typeof input!=='string' || input.length>180) throw new ServiceError(400,'Escribe el código del cupón o escanea su QR.');
@@ -17,10 +18,12 @@ async function findCoupon(db,input) {
   return result.docs[0];
 }
 export async function inspectCoupon(db,input) {
+  if(isTestCode(input))return inspectTestCoupon(db,input);
   const document=await findCoupon(db,input);
   return publicCoupon(document.data());
 }
 export async function redeemCoupon(db,input,now=new Date()) {
+  if(isTestCode(input))return redeemTestCoupon(db,input,now);
   const document=await findCoupon(db,input);
   const statsRef=db.doc('stats/redemptions');
   const coupon=await db.runTransaction(async transaction=>{
