@@ -35,6 +35,6 @@ export async function redeemTestCoupon(db,input,now=new Date()) {
     transaction.update(ref,{redeemedAt});
     return {...data,redeemedAt};
   });
-  // Test coupons never read or write dailyPrizes, coupons, dailyActivity or stats.
+  // Test coupons never read or write dailyPrizes, dailyDraws, coupons, dailyActivity or stats.
   return publicTest(coupon);
 }

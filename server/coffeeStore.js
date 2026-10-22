@@ -21,21 +21,33 @@ export async function readState(db, participant, now = new Date()) {
   return { day, nextResetAt: nextReset(now), coupon: publicCoupon(coupon.data()), review: review.exists ? publicReview(review.data(), review.id, participant) : null };
 }
 
-export async function drawDailyCoupon(db, participant, { now = new Date(), candidateWins = randomInt(15) === 0 } = {}) {
+export async function drawDailyCoupon(db, participant, { now = new Date(), random = randomInt } = {}) {
   const day = campaignDay(now);
   const couponRef = db.doc(`coupons/${day}_${participant}`);
   const dailyRef = db.doc(`dailyPrizes/${day}`);
+  const activityRef = db.doc(`dailyActivity/${day}`);
+  const drawRef = db.doc(`dailyDraws/${day}`);
   await ensureActivityDay(db,day);
-  // Draw once per request; transaction retries never draw again.
   const createdAt = Timestamp.fromDate(now);
   const code = `ANV-${randomBytes(6).toString('hex').toUpperCase()}`;
   const outcome = await db.runTransaction(async transaction => {
-    const [existing, daily] = await transaction.getAll(couponRef, dailyRef);
+    const [existing, daily, activity, draw] = await transaction.getAll(couponRef, dailyRef, activityRef, drawRef);
     if (existing.exists) return { coupon: existing.data(), isNew: false };
-    const won = candidateWins && !daily.exists;
-    const coupon = { code, day, won, createdAt, wonAt: won ? createdAt : null };
+    const count = activity.data()?.count;
+    if (!Number.isSafeInteger(count) || count < 0) throw new ServiceError(503, 'No pudimos preparar tu tarjeta. Inténtalo de nuevo en un momento.');
+    const attempt = count + 1;
+    let winningAttempt = draw.data()?.winningAttempt;
+    if (!daily.exists && !draw.exists) {
+      // Commit one private position for the day. Retries reuse a saved schedule.
+      // During rollout, preserve old results and pick from the remaining slots;
+      // if 15 old attempts already lost, the next new participant wins.
+      winningAttempt = attempt > 15 ? attempt : random(attempt, 16);
+      transaction.create(drawRef, { day, winningAttempt, createdAt, version: 1 });
+    }
+    const won = !daily.exists && attempt === winningAttempt;
+    const coupon = { code, day, attempt, won, createdAt, wonAt: won ? createdAt : null };
     transaction.create(couponRef, coupon);
-    transaction.set(db.doc(`dailyActivity/${day}`),{day,count:FieldValue.increment(1),version:1,updatedAt:createdAt},{merge:true});
+    transaction.set(activityRef,{day,count:FieldValue.increment(1),version:1,updatedAt:createdAt},{merge:true});
     // Creation precondition + read conflict protects the one global slot.
     if (won) transaction.create(dailyRef, { code, couponId: couponRef.id, wonAt: createdAt });
     return { coupon, isNew: true };

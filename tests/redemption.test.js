@@ -45,7 +45,7 @@ const db=app?getFirestore(app):null;
 after(async()=>{if(app){await db.terminate();await deleteApp(app);}});
 const person=value=>createHash('sha256').update(String(value)).digest('hex');
 test('Firestore: 12 canjes simultáneos entregan una sola confirmación', {skip:!emulator},async()=>{
-  const now=new Date('2026-10-21T17:00:00Z');const {coupon}=await drawDailyCoupon(db,person('redeem-winner'),{now,candidateWins:true});
+  const now=new Date('2026-10-21T17:00:00Z');const {coupon}=await drawDailyCoupon(db,person('redeem-winner'),{now,random:()=>1});
   const inspection=await inspectCoupon(db,`ANVID:${coupon.code}`);assert.equal(inspection.redeemedAt,null);
   const attempts=await Promise.allSettled(Array.from({length:12},()=>redeemCoupon(db,coupon.code,now)));
   assert.equal(attempts.filter(result=>result.status==='fulfilled').length,1);
@@ -55,7 +55,7 @@ test('Firestore: 12 canjes simultáneos entregan una sola confirmación', {skip:
   await assert.rejects(()=>redeemCoupon(db,coupon.code,now),{status:409});
 });
 test('Firestore: cupones sin premio, inexistentes y duplicados no se canjean', {skip:!emulator},async()=>{
-  const {coupon}=await drawDailyCoupon(db,person('redeem-loss'),{now:new Date('2026-10-21T18:00:00Z'),candidateWins:false});
+  const {coupon}=await drawDailyCoupon(db,person('redeem-loss'),{now:new Date('2026-10-21T18:00:00Z')});
   await assert.rejects(()=>redeemCoupon(db,coupon.code),{status:409});
   await assert.rejects(()=>inspectCoupon(db,'ANV-000000000000'),{status:404});
   await db.doc('coupons/duplicate-test').set({...((await db.collection('coupons').where('code','==',coupon.code).get()).docs[0].data())});
@@ -63,7 +63,7 @@ test('Firestore: cupones sin premio, inexistentes y duplicados no se canjean', {
 });
 
 test('Firestore: un QR TEST se canjea una sola vez y deja intactos premio, cupones y estadísticas reales', {skip:!emulator},async()=>{
-  const refs=['dailyPrizes/2026-10-21','dailyActivity/2026-10-21','stats/redemptions'].map(path=>db.doc(path));
+  const refs=['dailyPrizes/2026-10-21','dailyActivity/2026-10-21','dailyDraws/2026-10-21','stats/redemptions'].map(path=>db.doc(path));
   const before=await db.getAll(...refs),count=(await db.collection('coupons').get()).size;
   const coupon=await createTestCoupon(db,new Date('2026-10-21T20:00:00Z'));
   assert.equal(coupon.test,true);assert.match(coupon.code,/^TEST-[A-F0-9]{12}$/);

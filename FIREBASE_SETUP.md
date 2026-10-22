@@ -14,9 +14,10 @@ Proyecto: `anvid-coffe`. Usa Firestore Standard `(default)` en Spark, sin factur
 ## Reglas del juego
 
 - Máximo **un café ganador global** por fecha de UTC−6, no uno por visitante. El siguiente cupo abre a las 00:00 UTC−6 sin tareas programadas.
-- Se conserva la probabilidad del 35% antes de que exista un ganador. Después de un ganador todos pierden ese día. Puede haber cero ganadores si nadie acierta.
+- El servidor elige una posición ganadora uniforme entre 1 y 15, la guarda en `dailyDraws` y la conserva durante todo el día. Con 15 participaciones nuevas hay exactamente un ganador; con menos puede que la posición elegida aún no se alcance. Después del ganador todos pierden ese día. Cada nuevo día elige su propia posición, sin tareas programadas.
 - Una tarjeta por navegador y día. El servidor firma una cookie HttpOnly, SameSite=Lax y Secure en Vercel. La decisión, el código y la hora salen del servidor, nunca de campos enviados por el cliente ni de localStorage.
-- Una transacción lee el cupón del participante y `dailyPrizes/AAAA-MM-DD`. Si gana, crea ambos documentos de forma atómica; la lectura y la precondición de creación impiden dos ganadores, incluso con peticiones simultáneas. Repetir la solicitud devuelve el mismo cupón.
+- Una transacción lee el cupón del participante, `dailyPrizes/AAAA-MM-DD`, `dailyDraws/AAAA-MM-DD` y el contador `dailyActivity/AAAA-MM-DD`. Asigna la siguiente posición y crea el cupón y su incremento de forma atómica. Si gana, crea también la reserva diaria; la lectura y la precondición de creación impiden dos ganadores, incluso con peticiones simultáneas. Repetir la solicitud devuelve el mismo cupón sin consumir otra posición. La API pública no devuelve la posición ganadora ni el contador interno del cupón.
+- Durante la actualización se conservan los resultados emitidos. Si no hubo ganador, se elige entre las posiciones restantes hasta 15; si ya existían 15 o más perdedores, la siguiente participación nueva gana. Si ya hubo premio, no se emite otro.
 - Los resultados locales antiguos de la demostración se ignoran. El almacenamiento local solo conserva preferencias de sonido y vibración. Sin conexión/configuración no se crean resultados ni reseñas ficticias.
 - La cookie identifica un navegador, no una persona ni una compra: otro navegador o borrar cookies puede dar otra tarjeta, pero nunca abre un segundo premio diario. No hay autenticación de clientes ni validación de compras. El canje por el equipo se realiza en el panel privado documentado en `ADMIN_GUIDE.md`, mediante una transacción de un solo uso.
 - Una reseña por navegador, editable, con estrellas enteras de 1 a 5, comentario opcional de hasta 600 caracteres y fechas del servidor. Cambiar una reseña no añade otro voto al promedio. El resultado no condiciona la reseña. Las opiniones son públicas y no se solicitan datos personales.
@@ -25,8 +26,10 @@ Proyecto: `anvid-coffe`. Usa Firestore Standard `(default)` en Spark, sin factur
 
 | Colección | Contenido |
 | --- | --- |
-| `coupons` | Código, día, ganó/no ganó, fecha de emisión y fecha del premio si ganó. ID opaco por navegador/día. |
+| `coupons` | Código, día, posición de participación, ganó/no ganó, fecha de emisión y fecha del premio si ganó. ID opaco por navegador/día. |
 | `dailyPrizes` | Un documento por fecha ganadora: referencia al cupón y fecha del premio. |
+| `dailyDraws` | Posición ganadora privada e inmutable por día, elegida por el servidor. |
+| `dailyActivity` | Contador diario de participaciones nuevas, inicializado desde cupones anteriores y actualizado atómicamente. |
 | `reviews` | Calificación, comentario, fecha original y última actualización. |
 | `stats/reviews` | Total de reseñas y suma de estrellas para el promedio de todas las opiniones. |
 

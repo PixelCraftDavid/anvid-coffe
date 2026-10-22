@@ -29,7 +29,7 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 3. En el mismo celular, abrir **Leer desde una imagen → Elegir imagen del QR** y seleccionar la imagen guardada. Para probar la cámara, mostrar ese QR en otra pantalla y usar **Escanear QR** en el celular.
 4. Revisar el aviso de prueba y pulsar **Simular canje → Confirmar prueba**. Debe aparecer **Canjeado** y **El premio diario sigue intacto**. Volver a consultar ese mismo QR mantiene el estado usado; crear otro QR permite repetir la prueba.
 
-**Probar este canje** carga directamente el código en el validador cuando solo se quiere comprobar la confirmación. Estos registros viven exclusivamente en `testCoupons`, usan el prefijo QR `ANVID-TEST:`, exigen sesión privada y nunca modifican `dailyPrizes`, `coupons`, `dailyActivity` ni `stats/redemptions`. No aparecen en el historial o las cantidades reales. Los códigos normales conservan su comportamiento y su confirmación de entrega.
+**Probar este canje** carga directamente el código en el validador cuando solo se quiere comprobar la confirmación. Estos registros viven exclusivamente en `testCoupons`, usan el prefijo QR `ANVID-TEST:`, exigen sesión privada y nunca modifican `dailyPrizes`, `dailyDraws`, `coupons`, `dailyActivity` ni `stats/redemptions`. No aparecen en el historial o las cantidades reales. Los códigos normales conservan su comportamiento y su confirmación de entrega.
 
 ## Dashboard y mapa por capas
 

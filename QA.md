@@ -1,5 +1,12 @@
 # Verification
 
+## One random winner within the first 15 new daily cards — 22 October 2026
+
+- Supersedes the independent 1-in-15 candidate rule below. A private daily schedule chooses an inclusive 1–15 position with `randomInt(1, 16)` on a fresh day, committed with the first coupon. The same transaction reads/increments daily activity, assigns the coupon's private position and reserves the single prize on the selected position. Restoring an existing card consumes no position. Neither the schedule nor coupon position is returned by the public API.
+- All **27 tests passed without skips** against the official local Firestore emulator. A deterministic exhaustive integration test exercises all 15 possible winning positions over 17 new cards each, checks exactly the selected card wins, checks later RNG calls cannot move it and verifies public responses exclude private positions. Twenty simultaneous distinct draws yield positions 1–20 and exactly the selected winner; 12 simultaneous requests for one participant yield one new coupon and leave the next participant at position 2.
+- Additional integration coverage checks UTC−6 day renewal, rollout after three prior losses, rollout after 15 prior losses (the next new card wins), and an existing prior winner blocking all additional awards. Historical coupons remain byte-for-byte unchanged. QR TEST isolation now also compares the daily schedule before/after the simulated redemption. Existing real redemption, reviews, authentication and lightweight map tests passed.
+- Production build and `git diff --check` passed. The change is server-side; no frontend assets or new dependencies were needed. No real production draw, review or redemption was created during verification.
+
 ## Scratch copy and 1-in-15 odds — 22 October 2026
 
 - The public scratch view no longer contains “Máximo un café ganador al día entre todos.” Its browser/day and UTC−6 reset note remains. At 390×844 the note was visible, the removed sentence was absent, and document client/scroll widths both measured 390px. Proof: ignored `.local/anvid-probabilidad-15-movil.png`.
