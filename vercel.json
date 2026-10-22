@@ -1,0 +1,4 @@
+{
+  "rewrites":[{"source":"/65141f2d938a20dec25e1497fbb458f7ada0fca0","destination":"/65141f2d938a20dec25e1497fbb458f7ada0fca0.html"}],
+  "headers":[{"source":"/65141f2d938a20dec25e1497fbb458f7ada0fca0(.*)","headers":[{"key":"X-Robots-Tag","value":"noindex, nofollow"},{"key":"Referrer-Policy","value":"no-referrer"},{"key":"X-Frame-Options","value":"DENY"},{"key":"Content-Security-Policy","value":"frame-ancestors 'none'; base-uri 'self'; form-action 'self'"},{"key":"Permissions-Policy","value":"camera=(self), microphone=()"},{"key":"Cache-Control","value":"private, no-store"}]}]
+}

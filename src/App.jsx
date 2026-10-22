@@ -15,6 +15,8 @@ import { formatPrizeTimestamp } from './prizeDateTime.js';
 import { createExperienceHaptics } from './experienceHaptics.js';
 import CoffeeWelcome from './CoffeeWelcome.jsx';
 import LiquidGlass from './LiquidGlass.jsx';
+import CouponQr from './CouponQr.jsx';
+import QRCode from 'qrcode';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -154,23 +156,26 @@ function Confetti() {
   return <div className="confetti" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <motion.i key={i} initial={{ opacity: 1, transform: 'translate(0,0) rotate(0deg)' }} animate={{ opacity: [1, 1, 0], transform: `translate(${Math.sin(i * 2.4) * (130 + i * 5)}px, ${-90 + Math.cos(i * 1.6) * 220}px) rotate(${i * 47}deg)` }} transition={{ duration: 1.5, ease: 'easeOut', delay: i % 5 * 0.02 }} style={{ backgroundColor: ['#747b4e', '#b89b68', '#c8ccab', '#4a5238'][i % 4] }}/>)}</div>;
 }
 
-function savePass(play) {
+async function savePass(play) {
   const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1440;
   const ctx = canvas.getContext('2d'); if (!ctx) return;
   ctx.fillStyle = '#f6f4ed'; ctx.fillRect(0, 0, 1080, 1440);
   ctx.fillStyle = '#444b32'; ctx.fillRect(64, 64, 952, 1312);
   ctx.fillStyle = '#f6f4ed'; ctx.textAlign = 'center';
-  ctx.font = '90px Georgia'; ctx.fillText('anvid coffe', 540, 245);
-  ctx.font = '24px sans-serif'; ctx.fillText('UN PEQUEÑO GOLPE DE SUERTE', 540, 315);
-  ctx.font = 'italic 86px Georgia'; ctx.fillText('Un café para ti.', 540, 600);
-  ctx.font = '30px sans-serif'; ctx.fillText('CUPÓN DE CAFÉ', 540, 740);
-  ctx.font = 'bold 46px monospace'; ctx.fillText(play.code, 540, 850);
+  ctx.font = '90px Georgia'; ctx.fillText('anvid coffe', 540, 200);
+  ctx.font = '24px sans-serif'; ctx.fillText('UN PEQUEÑO GOLPE DE SUERTE', 540, 265);
+  ctx.font = 'italic 86px Georgia'; ctx.fillText('Un café para ti.', 540, 405);
+  ctx.font = '25px sans-serif'; ctx.fillText('CUPÓN DE UN SOLO USO', 540, 465);
+  const qr=document.createElement('canvas');
+  await QRCode.toCanvas(qr,`ANVID:${play.code}`,{width:300,margin:4,errorCorrectionLevel:'M',color:{dark:'#26301f',light:'#f6f4ed'}});
+  ctx.drawImage(qr,390,510,300,300);
+  ctx.font = 'bold 46px monospace'; ctx.fillText(play.code, 540, 895);
   const timestamp=formatPrizeTimestamp(play.wonAt);
-  ctx.font = '30px sans-serif'; ctx.fillText(timestamp ? `Ganado el ${timestamp.date}` : 'Fecha no registrada · pase anterior',540,940);
-  if(timestamp) {ctx.font='28px sans-serif';ctx.fillText(`${timestamp.time} · ${timestamp.zone}`,540,993);}
-  ctx.font = '25px sans-serif'; ctx.fillText('Muéstralo al equipo de Anvid Coffe.', 540, 1070);
-  ctx.font = 'italic 36px Georgia'; ctx.fillText('La suerte también se toma.', 540, 1210);
-  canvas.toBlob(blob => { if (!blob) return; const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mi-cupon-${play.code}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
+  ctx.font = '30px sans-serif'; ctx.fillText(timestamp ? `Ganado el ${timestamp.date}` : 'Fecha no registrada',540,970);
+  if(timestamp) {ctx.font='28px sans-serif';ctx.fillText(`${timestamp.time} · ${timestamp.zone}`,540,1023);}
+  ctx.font = '25px sans-serif'; ctx.fillText(play.redeemedAt?'Cupón ya canjeado.':'Muéstralo al equipo para validar y entregar tu café.', 540, 1120);
+  ctx.font = 'italic 36px Georgia'; ctx.fillText('La suerte también se toma.', 540, 1240);
+  return new Promise(resolve=>canvas.toBlob(blob => { if (!blob) return resolve(false); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mi-cupon-${play.code}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);resolve(true); }));
 }
 
 function ReviewForm({ onDone, saved, onSaved, compact = false, doneLabel = 'Volver a la experiencia' }) {
@@ -222,6 +227,8 @@ export default function App() {
   const haptics=useRef(null);
   if (!haptics.current) haptics.current=createExperienceHaptics({enabled:vibration});
   const [savedPass, setSavedPass] = useState(false);
+  const [downloading,setDownloading]=useState(false);
+  const [downloadError,setDownloadError]=useState('');
   const [reviewOrigin, setReviewOrigin] = useState('result');
   const [winCelebration, setWinCelebration] = useState(0);
   const [showWinCelebration, setShowWinCelebration] = useState(false);
@@ -313,7 +320,7 @@ export default function App() {
           {mode === 'result' && <motion.section key="result" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face result-face">
             {play.won && <Confetti/>}
             {play.won ? <><h1 ref={titleRef} tabIndex={-1}>Hoy invita<br/><em>la suerte.</em></h1><p className="screen-description">¡Ganaste un café de cortesía!<br/>Guarda este pequeño golpe de suerte.</p></> : <div className="loss-coupon"><span className="loss-coupon-brand">anvid <small>coffe</small></span><h1 ref={titleRef} tabIndex={-1}>Hoy no tocó.<br/><em>Lo bonito sigue.</em></h1><p>Esta tarjeta no tenía premio.<br/>Ojalá este café te regale una pausa bonita.<br/>Que hoy encuentres una razón para sonreír.</p><span className="loss-coupon-bottom">UN MOMENTO BONITO TAMBIÉN CUENTA.</span></div>}
-            {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>CUPÓN DE CAFÉ · ANVID COFFE</small></span></div><span className="mini-prize-code">{play.code}</span><PrizeTimestamp value={play.wonAt}/><button className="text-button" onClick={() => { savePass(play); setSavedPass(true); }}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {savedPass ? 'Cupón guardado · descargar otra vez' : 'Guardar mi cupón'}</button></div>}
+            {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>CUPÓN DE CAFÉ · ANVID COFFE</small></span></div><span className="mini-prize-code">{play.code}</span><PrizeTimestamp value={play.wonAt}/><CouponQr play={play}/><button className="text-button" disabled={downloading} onClick={async()=>{if(downloading)return;setDownloading(true);setDownloadError('');try{if(!await savePass(play))throw new Error();setSavedPass(true);}catch{setDownloadError('No pudimos descargarlo. Puedes mostrar el QR en esta pantalla.');}finally{setDownloading(false);}}}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {downloading?'Preparando cupón…':savedPass ? 'Cupón guardado · descargar otra vez' : 'Guardar mi cupón'}</button>{downloadError&&<p role="alert" className="form-error">{downloadError}</p>}</div>}
             <div className="result-review-prompt"><Action onClick={() => openReview('result')}>Dejar una reseña de mi café</Action></div>
             <span className="result-footnote">Tu opinión es sobre el café que probaste.</span>
           </motion.section>}

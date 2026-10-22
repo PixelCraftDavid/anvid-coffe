@@ -18,7 +18,7 @@ Proyecto: `anvid-coffe`. Usa Firestore Standard `(default)` en Spark, sin factur
 - Una tarjeta por navegador y día. El servidor firma una cookie HttpOnly, SameSite=Lax y Secure en Vercel. La decisión, el código y la hora salen del servidor, nunca de campos enviados por el cliente ni de localStorage.
 - Una transacción lee el cupón del participante y `dailyPrizes/AAAA-MM-DD`. Si gana, crea ambos documentos de forma atómica; la lectura y la precondición de creación impiden dos ganadores, incluso con peticiones simultáneas. Repetir la solicitud devuelve el mismo cupón.
 - Los resultados locales antiguos de la demostración se ignoran. El almacenamiento local solo conserva preferencias de sonido y vibración. Sin conexión/configuración no se crean resultados ni reseñas ficticias.
-- La cookie identifica un navegador, no una persona ni una compra: otro navegador o borrar cookies puede dar otra tarjeta, pero nunca abre un segundo premio diario. No hay autenticación de clientes ni validación/canje por empleados en este alcance.
+- La cookie identifica un navegador, no una persona ni una compra: otro navegador o borrar cookies puede dar otra tarjeta, pero nunca abre un segundo premio diario. No hay autenticación de clientes ni validación de compras. El canje por el equipo se realiza en el panel privado documentado en `ADMIN_GUIDE.md`, mediante una transacción de un solo uso.
 - Una reseña por navegador, editable, con estrellas enteras de 1 a 5, comentario opcional de hasta 600 caracteres y fechas del servidor. Cambiar una reseña no añade otro voto al promedio. El resultado no condiciona la reseña. Las opiniones son públicas y no se solicitan datos personales.
 
 ## Datos

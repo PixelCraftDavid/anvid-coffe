@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { FieldPath, Timestamp } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
 
 const dayMs = 86400000;
@@ -8,7 +8,7 @@ export function campaignDay(now = new Date()) { return new Date(now.getTime() - 
 export function nextReset(now = new Date()) { return new Date((Math.floor((now.getTime() - offsetMs) / dayMs) + 1) * dayMs + offsetMs).toISOString(); }
 function iso(value) { return value?.toDate?.().toISOString() || null; }
 export function publicCoupon(data) {
-  return data ? { code: data.code, won: data.won, day: data.day, createdAt: iso(data.createdAt), wonAt: iso(data.wonAt), revealed: true } : null;
+  return data ? { code: data.code, won: data.won, day: data.day, createdAt: iso(data.createdAt), wonAt: iso(data.wonAt), redeemedAt:iso(data.redeemedAt), revealed: true } : null;
 }
 export function publicReview(data, id, participant) {
   return { id, rating: data.rating, comment: data.comment, createdAt: iso(data.createdAt), updatedAt: iso(data.updatedAt), isMine: id === participant };
@@ -51,14 +51,14 @@ export async function writeReview(db, participant, value, now = new Date()) {
   const reviewRef = db.doc(`reviews/${participant}`);
   const statsRef = db.doc('stats/reviews');
   const review = await db.runTransaction(async transaction => {
-    const [previous, summary] = await transaction.getAll(reviewRef, statsRef);
+    const previous = await transaction.get(reviewRef);
     const old = previous.data();
     if (old?.rating === input.rating && old.comment === input.comment) return old;
     if (old && now.getTime() - old.updatedAt.toMillis() < 15000) throw new ServiceError(429, 'Espera unos segundos antes de actualizar tu reseña.');
-    const stats = summary.data() || { count: 0, sum: 0 };
     const next = { ...input, createdAt: old?.createdAt || Timestamp.fromDate(now), updatedAt: Timestamp.fromDate(now) };
     transaction.set(reviewRef, next);
-    transaction.set(statsRef, { count: stats.count + (old ? 0 : 1), sum: stats.sum - (old?.rating || 0) + input.rating });
+    // Atomic increments avoid a shared read lock when many visitors review at once.
+    transaction.set(statsRef, { count: FieldValue.increment(old ? 0 : 1), sum: FieldValue.increment(input.rating - (old?.rating || 0)) }, {merge:true});
     return next;
   });
   return { review: publicReview(review, participant, participant) };

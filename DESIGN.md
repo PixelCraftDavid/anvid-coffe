@@ -1,5 +1,13 @@
 # Anvid Coffe visual direction
 
+## Private panel: La barra
+
+The supplied monochrome dashboard reference informs an operational surface separate from the immersive public game. Charcoal olive navigation, warm ivory workspaces, restrained green accents, DM Sans interface and Instrument Serif headings preserve the café's identity. A compact fixed navigation rail, grouped daily values, seven-day activity plot, scrollable/paginated ledger and dark reviews area sit beside an independent redemption module. On phones that module appears first; text inputs remain 16px, targets at least 44px, and the ledger scrolls within its own boundary.
+
+The explicit 3D control serves spatial consistency/state indication at occasional frequency. CSS transitions transform the data panels over 280ms using cubic-bezier(.23,1,.32,1), with perspective, separate Z elevations, thin visible lower edges and soft depth shadows. Reversing the control interrupts continuously. The operational scanner stays flat. Reduced motion retains flat panels without transitions. The login uses a dark editorial brand plane beside a light password form; no private data is rendered before server authentication. The public game does not link to this panel.
+
+## Public game
+
 An intimate editorial world: deep olive, black edges, liquid glass and afternoon light. The entire experience is one centred game window, followed by its result and a button to review the coffee.
 
 Current production behavior: the demonstration menu and “Buen café. Pequeños rituales.” footer are removed. The scratch view states the daily global prize cap and browser/day limit. Loading, connection failure and retry remain inside the established glass panel; reviews use shared server data. The prize celebration has a fixed optical material, paused/hidden background scene, decoded images before synchronized motion/audio, 28 mobile confetti particles, a shorter mobile lid arc, 44px controls, and a height bounded by the current dynamic viewport. This avoids overlapping animated backdrop filters on Android while keeping the main game's liquid glass unchanged. Old mentions of a demo replay control below document the earlier design.
