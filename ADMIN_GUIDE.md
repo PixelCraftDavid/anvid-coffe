@@ -12,6 +12,17 @@ En Vercel → Settings → Environment Variables → Production, añadir como **
 
 Abrir el enlace privado e introducir esa contraseña. La sesión dura 8 horas y se guarda en una cookie HttpOnly, Secure en Vercel y SameSite=Strict. También se comprueba una sesión en Firestore en cada petición privada. Cerrar sesión la revoca en el servidor, incluso si se intentara reutilizar una copia antigua de la cookie. Cambiar la contraseña y volver a desplegar invalida las sesiones anteriores. El acceso se limita a 8 intentos por origen de red y 40 globales cada 15 minutos. No se registran contraseñas ni direcciones IP en claro.
 
+## Registrar ventas y consultar ganancias
+
+1. Entrar al panel. En **Un café más**, elegir **UTVM** o **Centro** y la cantidad vendida, después de cobrar.
+2. El precio base es **$30 MXN** y el costo aproximado **$9.95** por café. **Editar** permite registrar otros importes para esa venta; las anteriores conservan su precio/costo original.
+3. Pulsar **Registrar venta** y esperar la confirmación. **Nueva venta** prepara el siguiente registro. Un reintento de la misma solicitud no suma dos veces.
+4. El resumen de hoy muestra ingresos, costo y utilidad estimada. Esta utilidad no descuenta otros gastos ni cafés de cortesía; no es una utilidad neta contable.
+5. En **El ritmo de tus ventas**, elegir 7, 30 o 90 días y alternar ingresos/utilidad. El control **Consultar día** funciona por teclado. El mapa compara la cantidad vendida en cada zona durante ese mismo periodo.
+6. Una venta mal capturada puede anularse con el icono de regreso en **Cada venta cuenta → Confirmar anulación**. La anulación conserva sus importes y fecha originales, añade un sello de anulación y corrige los totales de ese día. No procesa un reembolso ni toca cupones o premios.
+
+Las ubicaciones del mapa representan zonas de referencia, no el puesto exacto ni la ubicación de clientes. Los datos vectoriales de OpenStreetMap se sirven localmente y conservan su licencia en `/maps/README.txt`; no hay geolocalización, mosaicos externos ni claves de mapas. Al comenzar, los importes son cero hasta registrar ventas reales: no se deducen ventas de las tarjetas del juego. Este registro no implementa por sí solo la autorización de compra para jugar.
+
 ## Entregar un café
 
 1. El cliente abre su QR en el cupón o muestra la imagen PNG descargada. Los cupones anteriores siguen siendo reconocibles por su código.
@@ -48,9 +59,11 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 - `adminLoginAttempts`: contadores por ventana temporal y una huella HMAC del origen de red; no almacena IP en claro.
 - `dailyActivity`: una cantidad diaria derivada de los cupones, inicializada una vez y aumentada en la misma transacción que crea cada nueva participación. Restaurar una tarjeta no incrementa su cantidad.
 - `testCoupons`: códigos `TEST-…`, fechas y estado de canje de pruebas privadas. No tienen valor de premio ni se mezclan con las estadísticas reales.
+- `sales`: cantidad, zona, precio/costo en centavos, importes calculados, fecha del servidor y eventual fecha de anulación. Clave idempotente por solicitud.
+- `dailySales`: totales diarios y por zona para ingresos, costo y utilidad estimada. Se actualizan en la misma transacción que cada registro o anulación.
 
 Las reglas de Firestore siguen cerradas. El servidor usa IAM y valida origen, contraseña, sesión, tamaño y código. Las respuestas privadas llevan `no-store`. La ruta tiene `noindex`, `no-referrer` y protección contra incrustación en marcos.
 
 ## Pruebas
 
-Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 22 pruebas, incluidas aislamiento de cupones TEST, canje de un solo uso sin modificar premios reales, trabajo acotado del mapa, pausa y cancelación, migración del mapa anual, lectura de QR, sesión/rotación/logout, límite de intentos y canjes concurrentes. No se crean ni canjean premios reales automáticamente.
+Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 32 pruebas, incluidas las 15 posiciones ganadoras, aislamiento de cupones TEST, canje de un solo uso, mapa ligero, sesiones privadas, ventas concurrentes, centavos exactos, anulaciones idempotentes y conservación de costos históricos. No se crean ni canjean premios ni ventas reales automáticamente.

@@ -3,6 +3,7 @@ import { requireSameOrigin } from '../server/session.js';
 import { adminSettings, checkPassword, createAdminSession, clearAdminSession, requireAdminSession, limitAdminLogin, saveAdminSession, verifyStoredSession, revokeAdminSession } from '../server/adminAuth.js';
 import { adminDashboard, couponPage, inspectCoupon, redeemCoupon } from '../server/redemption.js';
 import { createTestCoupon } from '../server/testCoupons.js';
+import { recordSale, voidSale } from '../server/salesStore.js';
 
 async function readBody(req) {
   let body=req.body;
@@ -41,6 +42,8 @@ export default async function handler(req,res) {
     if(body.action==='inspect')return send(200,{coupon:await inspectCoupon(db,body.code)});
     if(body.action==='redeem')return send(200,{coupon:await redeemCoupon(db,body.code)});
     if(body.action==='createTestCoupon')return send(200,{coupon:await createTestCoupon(db)});
+    if(body.action==='recordSale')return send(200,await recordSale(db,body));
+    if(body.action==='voidSale')return send(200,await voidSale(db,body.saleId));
     throw new ServiceError(400,'Solicitud no reconocida.');
   }catch(error){
     if(error instanceof ServiceError){if(error.status===429)res.setHeader('Retry-After','900');return send(error.status,{error:error.message});}

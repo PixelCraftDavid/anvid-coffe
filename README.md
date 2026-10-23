@@ -28,6 +28,14 @@ Se usan los planes gratuitos elegidos por el propietario, sujetos a sus cuotas, 
 - Reseñas: estrellas enteras de 1 a 5, comentario opcional de hasta 600 caracteres, creación y actualización. Una opinión por navegador, editable. Se muestran todas las calificaciones, con promedio global y páginas de 20 opiniones. No se piden datos personales y el premio no depende de dejar una reseña.
 - Las preferencias de sonido y vibración siguen guardadas localmente. Las tarjetas y opiniones antiguas del modo demostración no se importan. No hay controles para forzar premios.
 
+## Ventas en el panel privado
+
+El dashboard incluye ventas manuales por **UTVM** o **Centro de Ixmiquilpan**, con precio base de **$30 MXN** y costo aproximado de **$9.95**. Calcula ingresos, costo de preparación y utilidad estimada antes de otros gastos y cortesías. No convierte tarjetas raspadas en ventas ni inventa un historial anterior. Registrar una venta tampoco autoriza todavía un intento de juego: la validación de compra sigue pendiente.
+
+La gráfica y el mapa comparten filtros de 7, 30 y 90 días. Los importes se guardan en centavos enteros, cada venta conserva su precio/costo original, los reintentos usan una clave idempotente y las anulaciones mantienen el registro y corrigen los acumulados de su fecha original. Estas acciones solo funcionan con una sesión privada válida.
+
+El fondo verde wave mueve dos capas mediante transformaciones; se pausa al ocultar la pestaña y respeta movimiento reducido. El mapa de actividad sigue siendo el canvas ligero 2D/3D. El mapa geográfico usa cinco trazos SVG locales derivados de [OpenStreetMap](https://www.openstreetmap.org/copyright), con datos y licencia ODbL en `public/maps/`. No carga mosaicos externos, servicios de pago ni claves API.
+
 ## Animación y accesibilidad
 
 El raspado funciona con mouse y dedo, además del botón accesible para descubrir la tarjeta. Su sonido sigue el movimiento y se detiene al soltar; los móviles compatibles reciben pequeños pulsos de vibración. Se conserva el silencio elegido por el visitante. Los límites del navegador y el dispositivo determinan la disponibilidad de audio y vibración.

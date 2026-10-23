@@ -1,6 +1,7 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {initializeApp,deleteApp} from 'firebase-admin/app';
 import {getFirestore} from 'firebase-admin/firestore';
 import QRCode from 'qrcode';
@@ -95,11 +96,18 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
   try{
     assert.equal((await call('GET')).status,401);
     assert.equal((await call('POST',{action:'createTestCoupon'})).status,401);
+    assert.equal((await call('POST',{action:'recordSale',requestId:randomUUID(),quantity:1,locationId:'utvm'})).status,401);
+    assert.equal((await call('POST',{action:'voidSale',saleId:randomUUID()})).status,401);
     assert.equal((await call('POST',{action:'login',password:privateTestPassword},'','http://attacker.test')).status,403);
     assert.equal((await call('POST',{action:'login',password:'incorrecta'})).status,401);
     const login=await call('POST',{action:'login',password:privateTestPassword});assert.equal(login.status,200);
     const cookie=login.headers['Set-Cookie'].split(';')[0];const state=await call('GET',undefined,cookie);assert.equal(state.status,200);assert.equal(state.json.authenticated,true);assert.match(state.headers['Cache-Control'],/no-store/);
     const qrTest=await call('POST',{action:'createTestCoupon'},cookie);assert.equal(qrTest.status,200);assert.equal(qrTest.json.coupon.test,true);
+    const requestId=randomUUID();
+    const sale=await call('POST',{action:'recordSale',requestId,quantity:1,locationId:'utvm'},cookie);assert.equal(sale.status,200);assert.equal(sale.json.sale.profitCents,2005);
+    const repeated=await call('POST',{action:'recordSale',requestId,quantity:1,locationId:'utvm'},cookie);assert.equal(repeated.json.isNew,false);
+    assert.equal((await call('POST',{action:'voidSale',saleId:requestId},cookie,'http://attacker.test')).status,403);
+    assert.ok((await call('POST',{action:'voidSale',saleId:requestId},cookie)).json.sale.voidedAt);
     const logout=await call('POST',{action:'logout'},cookie);assert.equal(logout.status,200);assert.match(logout.headers['Set-Cookie'],/Max-Age=0/);
     assert.equal((await call('GET',undefined,cookie)).status,401);
     const secondLogin=await call('POST',{action:'login',password:privateTestPassword});assert.equal(secondLogin.status,200);const secondCookie=secondLogin.headers['Set-Cookie'].split(';')[0];
