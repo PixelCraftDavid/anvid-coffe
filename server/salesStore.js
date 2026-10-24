@@ -4,6 +4,7 @@ import { campaignDay } from './coffeeStore.js';
 import { saleDefaults, saleLocations } from '../shared/salesConfig.js';
 import { markDashboardChange } from './dashboardLive.js';
 import {createSalePasses,saveSalePasses,salePasses} from './playPasses.js';
+import {requestCode,pendingInTransaction,approveRequest} from './playRequests.js';
 
 const emptyTotals = () => ({ quantity: 0, orders: 0, revenueCents: 0, costCents: 0, profitCents: 0 });
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -13,7 +14,8 @@ export function validateSale(value) {
   if (!Number.isInteger(value.quantity) || value.quantity < 1 || value.quantity > 100) throw new ServiceError(400, 'Registra entre 1 y 100 cafés.');
   const { unitPriceCents = saleDefaults.unitPriceCents, unitCostCents = saleDefaults.unitCostCents } = value;
   for (const amount of [unitPriceCents, unitCostCents]) if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1000000) throw new ServiceError(400, 'Revisa el precio y costo: deben ser importes válidos en centavos.');
-  return { requestId: value.requestId, locationId: value.locationId, quantity: value.quantity, unitPriceCents, unitCostCents };
+  if(value.requestCode&&value.quantity!==1)throw new ServiceError(400,'Cada identificador autoriza un café. Registra un café para esta solicitud.');
+  return { requestId: value.requestId, locationId: value.locationId, quantity: value.quantity, unitPriceCents, unitCostCents,...(value.requestCode?{requestCode:requestCode(value.requestCode)}:{}) };
 }
 function publicSale(data, id) {
   return { id, locationId: data.locationId, quantity: data.quantity, unitPriceCents: data.unitPriceCents, unitCostCents: data.unitCostCents, revenueCents: data.revenueCents, costCents: data.costCents, profitCents: data.profitCents, day: data.day, createdAt: data.createdAt.toDate().toISOString(), voidedAt: data.voidedAt?.toDate().toISOString() || null };
@@ -39,8 +41,10 @@ export async function recordSale(db, value, now = new Date()) {
       if (saved.voidedAt || Object.keys(input).some(key => input[key] !== saved[key])) throw new ServiceError(409, 'Esta solicitud ya pertenece a otra venta. Actualiza el panel antes de continuar.');
       return { sale: saved, isNew: false };
     }
+    const request=input.requestCode?await pendingInTransaction(transaction,db,input.requestCode,now):null;
     transaction.create(saleRef, sale);
-    saveSalePasses(transaction,db,saleRef.id,sale.passTokens,createdAt);
+    saveSalePasses(transaction,db,saleRef.id,sale.passTokens,createdAt,request?{assignedParticipant:request.data().participant,requestCode:request.id}:{});
+    if(request)approveRequest(transaction,db,request,sale.passTokens[0],saleRef.id,now);
     transaction.set(dayRef, changeDay(daily.data(), sale, 1, createdAt));
     markDashboardChange(transaction,db,'sales',now);
     return { sale, isNew: true };

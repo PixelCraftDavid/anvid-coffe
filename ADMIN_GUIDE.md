@@ -16,20 +16,29 @@ Abrir el enlace privado e introducir esa contraseña. La sesión dura 8 horas y 
 
 1. Entrar al panel y abrir **Ventas**. En **Un café más**, elegir **UTVM** o **Centro** y la cantidad vendida, después de cobrar.
 2. El precio base es **$30 MXN** y el costo aproximado **$9.95** por café. **Editar** permite registrar otros importes para esa venta; las anteriores conservan su precio/costo original.
-3. Pulsar **Registrar venta** y esperar la confirmación. Aparece **El pase de su café**, con un QR independiente por cada café registrado. Si vendiste varios, **Seleccionar pase** permite entregar uno a cada comprador. **Nueva venta** prepara el siguiente registro. Un reintento no duplica la venta ni sus pases.
+3. Pulsar **Registrar venta** y esperar la confirmación. Si el cliente quiere jugar, seleccionar su identificador en la herramienta de arriba y activar **Ya registré esta venta**, eligiendo este registro. **Nueva venta** prepara otro cobro. No vuelvas a registrar la misma compra al autorizar.
 4. El resumen de hoy muestra ingresos, costo y utilidad estimada. Esta utilidad no descuenta otros gastos ni cafés de cortesía; no es una utilidad neta contable.
 5. En **El ritmo de tus ventas**, elegir 7, 30 o 90 días y alternar ingresos/utilidad. El control **Consultar día** funciona por teclado. El mapa compara la cantidad vendida en cada zona durante ese mismo periodo.
 6. Una venta mal capturada puede anularse con el icono de regreso en **Cada venta cuenta → Confirmar anulación**. Conserva los importes originales, añade un sello y corrige los totales de ese día. También bloquea sus pases pendientes. No procesa un reembolso ni cambia premios ya emitidos.
 
 Las ubicaciones del mapa representan zonas de referencia, no el puesto exacto ni la ubicación de clientes. Los datos vectoriales de OpenStreetMap se sirven localmente y conservan su licencia en `/maps/README.txt`; no hay geolocalización, mosaicos externos ni claves de mapas. Al comenzar, los importes son cero hasta registrar ventas reales: no se deducen ventas de las tarjetas del juego.
 
-## Entregar el pase para jugar
+## QR impreso y autorización del juego
 
-Después de cobrar y registrar la venta, muestra el QR de **El pase de su café** al comprador. También puedes guardar el QR plano o copiar el enlace y compartirlo tú. **Abrir el pase** permite revisarlo: abrir, escanear o recargar no consume el intento. El cliente puede pegar el enlace o código en la página si lo necesita. **Cada venta cuenta → Ver QR** recupera los mismos pases; no genera otros. Las ventas anteriores a esta actualización no reciben pases retroactivos.
+1. Abrir **Ventas → Un QR para tu mostrador → Descargar para imprimir**. Imprimir la lámina PNG una vez; apunta siempre a `https://anvid-coffe.vercel.app/#jugar`, nunca al panel ni a localhost.
+2. Después de cobrar, pedir al cliente que escanee. La pantalla muestra un identificador como `ABC-123`. La cola y el contador de **Ventas** se actualizan automáticamente, normalmente dentro de 8 segundos. No hay juego habilitado todavía.
+3. Comparar el identificador del teléfono del comprador con el del panel. Seleccionar esa fila o buscar el código exacto. No autorizar una fila solo porque apareció en la lista.
+4. Elegir UTVM/Centro y pulsar **Registrar venta y autorizar**. Registra **1 café de $30**, costo aproximado $9.95, y activa un único intento en una transacción. No registres esa venta de nuevo en el formulario manual.
+5. Si ya capturaste la venta, activar **Ya registré esta venta**, seleccionar el registro y pulsar **Autorizar con esta venta**. No suma ingresos; utiliza uno de sus intentos libres. Las ventas con varios cafés tienen un intento por café. Repetir la misma autorización no la duplica.
+6. La tarjeta del cliente se abre automáticamente, normalmente en 5 segundos si su pantalla está visible y conectada. Abrir o recargar no consume nada. Solo revelar utiliza el intento y participa en el sorteo de ese día. El resultado se recupera en el mismo navegador. Para otra compra, **Compré otro café** prepara un nuevo identificador.
 
-La página permite raspar únicamente con un pase válido. Al revelar el resultado, el servidor comprueba la compra y consume el pase junto con el sorteo en una sola transacción. El mismo navegador recupera ese resultado, incluso si repite una solicitud. Otro navegador no puede volver a usarlo. Una nueva compra trae otro pase, aunque se use el mismo teléfono: sustituye el anterior límite por navegador/día. El ganador diario sigue el mismo sorteo entre las primeras 15 participaciones válidas del día de revelación.
+Los identificadores pendientes caducan después de **15 minutos** y pueden descartarse sin registrar ventas ni consumir premios. El cliente puede solicitar otro si caducó; no se cobra nuevamente por este cambio. Si se anuló una compra autorizada pero aún no jugada, sus intentos quedan bloqueados y puede generar otra solicitud; revisa físicamente la compra antes de vincularla a una venta válida. Cambiar de navegador o borrar cookies pierde el vínculo; no autorices dos intentos para el mismo café.
 
-Estos pases no caducan automáticamente: no se acordó una fecha de vencimiento. Pueden usarse después de comprar, mientras la venta no haya sido anulada. Son comprobantes al portador: si alguien comparte un pase pendiente, quien lo use primero consume su único intento; no verifican identidad. Entrar solo al enlace general no permite jugar. Las reseñas siguen disponibles sin condicionar el premio. El QR del premio ganador es diferente y se usa exclusivamente para el canje.
+El QR fijo y el enlace se pueden compartir, pero compartirlos no desbloquea el raspado: cada compra requiere aprobación privada y el intento se vincula al navegador del cliente. El identificador de seis caracteres es una etiqueta de atención, no una contraseña. Se limitan las solicitudes nuevas a 60 por huella de red y 120 globales cada 15 minutos. Volver a abrir una solicitud vigente no aumenta esos contadores. No se guardan direcciones IP en claro.
+
+El sorteo mantiene la posición ganadora privada al azar entre las primeras 15 participaciones válidas del día UTC−6; con 15 intentos nuevos habrá exactamente un ganador. Escanear y autorizar no toman posiciones ni gastan el premio. El QR del cupón ganador es distinto del QR impreso y sirve exclusivamente para el canje. Las reseñas siguen siendo voluntarias.
+
+**Compatibilidad:** los pases individuales entregados anteriormente siguen funcionando. **Cada venta cuenta → Ver QR** recupera esos pases para casos existentes. El flujo habitual usa el QR fijo y la autorización presencial. Una venta histórica sin pases obtiene sus intentos solo cuando se autoriza explícitamente con ella; no se altera su ingreso original. Un pase individual antiguo aún no utilizado conserva su condición al portador; uno vinculado a identificador rechaza otros navegadores.
 
 ## Entregar un café
 
@@ -39,7 +48,7 @@ Estos pases no caducan automáticamente: no se acordó una fecha de vencimiento.
 4. Cuando se vaya a entregar el café, pulsar **Marcar como canjeado → Confirmar entrega**. El servidor vuelve a comprobar el cupón dentro de una transacción.
 5. Esperar el estado **Canjeado**, su fecha y la confirmación. Un QR copiado, un segundo teléfono o un doble clic no pueden producir otro canje. Si hubo un corte de red, volver a consultar el código antes de entregar otro café.
 
-No se definió una caducidad por el propietario, así que no se inventa una fecha de vencimiento. Un cupón ganador guardado puede canjearse en otra fecha si sigue sin utilizar. El sistema no verifica identidad ni compras; el cupón es un comprobante al portador. El acceso es compartido por el equipo con una sola contraseña, sin cuentas individuales de empleados.
+No se definió una caducidad por el propietario, así que no se inventa una fecha de vencimiento. Un cupón ganador guardado puede canjearse en otra fecha si sigue sin utilizar. El cupón ganador es un comprobante al portador, aunque su participación se autorizó contra una compra; no verifica identidad personal. El acceso es compartido por el equipo con una sola contraseña, sin cuentas individuales de empleados.
 
 ## Probar el QR en tu celular sin gastar el premio
 
@@ -75,6 +84,10 @@ El QR se muestra plano de forma predeterminada. Tocarlo eleva una escena de caf�
 - `sales`: cantidad, zona, precio/costo en centavos, importes calculados, fecha del servidor y eventual fecha de anulación. Clave idempotente por solicitud.
 - `dailySales`: totales diarios y por zona para ingresos, costo y utilidad estimada. Se actualizan en la misma transacción que cada registro o anulación.
 - `playPasses`: identificador derivado de un token aleatorio de 192 bits, venta, número de pase, creación y eventual consumo con navegador y cupón. Los tokens se guardan solo en el registro privado de la venta para volver a entregar los mismos QR. La API pública nunca lista pases.
+- `playRequests`: identificador, estado pendiente/autorizado/usado/cancelado/caducado, fechas y vínculo privado a navegador e intento.
+- `playRequestOwners`: última solicitud del navegador, identificado mediante cookie firmada.
+- `playWaiting`: cola de identificadores vigentes; se retira al autorizar, descartar o reemplazar. Los caducados quedan excluidos por fecha sin procesos de pago.
+- `playRequestLimits`: contadores por ventana y huella HMAC de red, sin IP en claro.
 - `participants`: referencia al último cupón del navegador para recuperar su resultado. No contiene nombres ni datos de contacto.
 - `dashboardEvents`: un registro pequeño con tema y fecha de confirmación por cambio real, creado dentro de la misma transacción. No contiene contraseñas ni comentarios. Permite consultar cambios recientes con un cursor preciso, sin recorrer todos los registros ni mantener conexiones abiertas. Reintentos idénticos y canjes TEST no generan eventos reales.
 
@@ -82,4 +95,4 @@ Las reglas de Firestore siguen cerradas. El servidor usa IAM y valida origen, co
 
 ## Pruebas
 
-Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 48 pruebas, incluidas las 15 posiciones ganadoras, aislamiento TEST, canje de un solo uso, mapa ligero, sesiones privadas, ventas concurrentes, centavos exactos, anulaciones idempotentes y conservación de costos históricos. También comprueba cambios atómicos, consultas sin cambios, cursores, pausa, reintentos, pases ligados a compras, uso simultáneo, lectura de QR en color y límites de la escena de vóxeles. No se crean ni canjean premios ni ventas reales automáticamente.
+Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 56 pruebas, incluidas las 15 posiciones ganadoras, aislamiento TEST, canje de un solo uso, mapa ligero, sesiones privadas, ventas concurrentes, centavos exactos, anulaciones idempotentes y conservación de costos históricos. También comprueba cambios atómicos, consultas sin cambios, cursores, pausa, reintentos, pases ligados a compras, uso simultáneo, lectura de QR en color y límites de la escena de vóxeles, solicitud/caducidad/cancelación, aprobación atómica, venta reutilizada sin duplicar ingreso, vínculo al navegador y límites de solicitudes. No se crean ni canjean premios ni ventas reales automáticamente.

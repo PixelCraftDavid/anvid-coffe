@@ -6,6 +6,7 @@ import { createTestCoupon } from '../server/testCoupons.js';
 import { recordSale, voidSale } from '../server/salesStore.js';
 import { listReviews } from '../server/coffeeStore.js';
 import {salePasses} from '../server/playPasses.js';
+import {waitingRequests,authorizeExistingSale,dismissPlayRequest,requestCode} from '../server/playRequests.js';
 
 async function readBody(req) {
   let body=req.body;
@@ -41,6 +42,7 @@ export default async function handler(req,res) {
       if(url.searchParams.get('view')==='coupons')return send(200,await couponPage(db,url.searchParams.get('cursor')));
       if(url.searchParams.get('view')==='reviews')return send(200,await listReviews(db,null,url.searchParams.get('cursor')));
       if(url.searchParams.get('view')==='passes')return send(200,await salePasses(db,url.searchParams.get('saleId')));
+      if(url.searchParams.get('view')==='requests')return send(200,await waitingRequests(db,url.searchParams.get('code')));
       if(url.searchParams.get('view')==='live')return send(200,await dashboardChanges(db,url.searchParams.get('since')));
       return send(200,await adminDashboard(db));
     }
@@ -48,6 +50,9 @@ export default async function handler(req,res) {
     if(body.action==='redeem')return send(200,{coupon:await redeemCoupon(db,body.code)});
     if(body.action==='createTestCoupon')return send(200,{coupon:await createTestCoupon(db)});
     if(body.action==='recordSale')return send(200,await recordSale(db,body));
+    if(body.action==='authorizePlay')return send(200,await recordSale(db,{...body,requestCode:requestCode(body.requestCode),quantity:1}));
+    if(body.action==='authorizeExistingSale')return send(200,await authorizeExistingSale(db,body.requestCode,body.saleId));
+    if(body.action==='dismissPlayRequest')return send(200,await dismissPlayRequest(db,body.requestCode));
     if(body.action==='voidSale')return send(200,await voidSale(db,body.saleId));
     throw new ServiceError(400,'Solicitud no reconocida.');
   }catch(error){

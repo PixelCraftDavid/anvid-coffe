@@ -12,6 +12,7 @@ import './panel.css';
 import './dashboard.css';
 import './workspace.css';
 import './studio.css';
+import './playAccess.css';
 
 function AmbientWave(){
   const root=useRef(null);

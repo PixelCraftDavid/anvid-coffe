@@ -9,6 +9,7 @@ import useDashboardSync from './useDashboardSync.js';
 import {mergeDashboardPatch,olderRevision} from './liveModel.js';
 import useFolderContours from './useFolderContours.js';
 import TestCoupon from './TestCoupon.jsx';
+import PlayAccessDesk from './PlayAccessDesk.jsx';
 import {WorkspaceNav,workspacePages,workspacePage,BusinessPulse,DailyNotes,ActivityNotes,ReviewDesk} from './Workspace.jsx';
 
 const dateText=value=>value&&Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('es-MX',{timeZone:'Etc/GMT+6',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'—';
@@ -28,6 +29,13 @@ export default function Dashboard({session,onExpired,onLogout,children}){
     return()=>window.removeEventListener('hashchange',update);
   },[]);
   useEffect(()=>{document.title=`${page.name} · Anvid Coffe`;},[page.name]);
+  useEffect(()=>{
+    const items=data?.waiting?.items;if(!items?.length)return;
+    const prune=()=>setData(previous=>{if(!previous?.waiting)return previous;const active=previous.waiting.items.filter(row=>Date.parse(row.expiresAt)>Date.now());return active.length===previous.waiting.items.length?previous:{...previous,waiting:{...previous.waiting,items:active}};});
+    const timer=setTimeout(prune,Math.max(0,Math.min(...items.map(row=>Date.parse(row.expiresAt)))-Date.now()+100));
+    const visible=()=>{if(!document.hidden)prune();};document.addEventListener('visibilitychange',visible);
+    return()=>{clearTimeout(timer);document.removeEventListener('visibilitychange',visible);};
+  },[data?.waiting?.items]);
   useEffect(()=>{
     // Decorative motion runs only on visible surfaces. No per-frame React work.
     const elements=viewRef.current?.querySelectorAll('[data-ambient]');
@@ -69,7 +77,7 @@ export default function Dashboard({session,onExpired,onLogout,children}){
 
   return <>{children}<svg width="0" height="0" className="folder-definitions" aria-hidden="true"><defs ref={folderDefinitions}/></svg><div className="admin-shell workspace-shell">
     <a href="#workspace-content" className="workspace-skip" onClick={event=>{event.preventDefault();document.getElementById('workspace-content')?.focus();}}>Saltar al contenido</a>
-    <WorkspaceNav active={navigation} local={session.local}/>
+    <WorkspaceNav active={navigation} local={session.local} waitingCount={data?.waiting?.items.length||0}/>
     <main className="admin-page workspace-main" id="workspace-content" tabIndex={-1}>
       <header className="workspace-toolbar"><span className="workspace-place"><MapPin size={14}/>Ixmiquilpan, Hidalgo{session.local&&<small>Prueba local</small>}</span><div className="workspace-tools"><span className={`sync-state sync-${syncStatus}`} title="Comprueba cambios cada 8 segundos mientras el panel está visible. Solo descarga los apartados modificados."><i/>{syncText}</span><button className="admin-icon-button" disabled={loading} onClick={refresh} aria-label="Actualizar panel"><RefreshCw size={17} className={loading?'is-refreshing':''}/></button><button className="admin-icon-button" disabled={logoutPending} onClick={logout} aria-label="Cerrar sesión"><LogOut size={17}/></button></div></header>
       <div className="workspace-masthead"><div><h1 className="dashboard-title" tabIndex={0}>{page.name}<span className="title-dot">.</span></h1><p>{page.description}</p></div><div className="workspace-heading-meta"><time>{today}</time>{navigation!=='ventas'&&<a className="workspace-sale-link" href="#ventas"><Plus size={16}/>Registrar venta</a>}</div></div>
@@ -82,6 +90,7 @@ export default function Dashboard({session,onExpired,onLogout,children}){
           <div className="studio-summary-foot"><BusinessPulse sales={data?.sales}/><DailyNotes data={data} dateText={dateText}/></div>
         </>}
         {navigation==='ventas'&&<>
+          <PlayAccessDesk waiting={data?.waiting} sales={data?.sales} revision={data?.revision?.requests} onChanged={refresh} onExpired={onExpired}/>
           <div className="sales-workbench"><SalesChart sales={data?.sales} period={period} onPeriod={setPeriod} loading={loading}/><SaleEntry revision={data?.revision?.coupons} onRecorded={refresh} onExpired={onExpired}/></div>
           <LocationMap sales={data?.sales} period={period}/>
           <SalesHistory revision={data?.revision?.coupons} sales={data?.sales} onChanged={refresh} onExpired={onExpired} dateText={dateText}/>

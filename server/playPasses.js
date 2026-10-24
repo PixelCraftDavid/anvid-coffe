@@ -6,8 +6,8 @@ export function passId(token){
   return createHash('sha256').update(token).digest('hex');
 }
 export function createSalePasses(quantity){return Array.from({length:quantity},()=>randomBytes(24).toString('hex'));}
-export function saveSalePasses(transaction,db,saleId,tokens,createdAt){
-  tokens.forEach((token,index)=>transaction.create(db.doc(`playPasses/${passId(token)}`),{saleId,ordinal:index+1,createdAt,usedAt:null,participant:null,couponId:null}));
+export function saveSalePasses(transaction,db,saleId,tokens,createdAt,binding={}){
+  tokens.forEach((token,index)=>transaction.create(db.doc(`playPasses/${passId(token)}`),{saleId,ordinal:index+1,createdAt,usedAt:null,participant:null,couponId:null,...(index===0?binding:{})}));
 }
 export async function salePasses(db,saleId){
   if(!/^[0-9a-f-]{36}$/.test(saleId||''))throw new ServiceError(400,'Selecciona una venta válida.');
@@ -19,6 +19,7 @@ export async function salePasses(db,saleId){
 export async function inspectPlayPass(db,token,participant){
   const ref=db.doc(`playPasses/${passId(token)}`),saved=await ref.get(),data=saved.data();
   if(!data)throw new ServiceError(404,'No encontramos ese pase. Comprueba el QR de tu compra.');
+  if(data.assignedParticipant&&data.assignedParticipant!==participant)throw new ServiceError(403,'Este juego está autorizado para otro navegador. Muestra tu propio identificador al equipo.');
   const sale=await db.doc(`sales/${data.saleId}`).get();
   if(data.usedAt&&data.participant!==participant)throw new ServiceError(409,'Este pase ya se usó en otro navegador. Cada pase permite un solo intento.');
   if(!data.usedAt&&(!sale.exists||sale.data().voidedAt))throw new ServiceError(409,'La compra de este pase fue anulada. Consulta al equipo de Anvid.');

@@ -12,6 +12,7 @@ import experienceHandler from '../api/experience.js';
 import QRCode from 'qrcode';
 import zxing from '@zxing/library';
 import {qrColors,qrInk} from '../src/qrPalette.js';
+import {printedGameUrl} from '../shared/playAccessConfig.js';
 
 const emulator=/^(127\.0\.0\.1|localhost):\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST||'');
 const app=emulator?initializeApp({projectId:`demo-anvid-passes-${Date.now()}`},'purchase-pass-tests'):null,db=app?getFirestore(app):null;
@@ -30,12 +31,12 @@ test('taza QR: proyección acotada y transición interrumpible sin bucle en repo
   const run=time=>{now=time;const callbacks=[...frames.values()];frames.clear();callbacks.forEach(fn=>fn(time));};
   motion.to(1);run(100);assert.equal(frames.size,1);const partial=motion.value;assert.ok(partial>0&&partial<1);motion.to(0);run(380);assert.equal(motion.value,0);assert.equal(frames.size,0);motion.to(1);motion.pause();assert.equal(frames.size,0);motion.redraw();assert.equal(draws.at(-1),1);motion.dispose();
 });
-test('QR en color: tonos de la escena con contraste y lectura de premio, TEST y pase de compra',()=>{
+test('QR en color: contraste y lectura de premio, TEST, pase y QR fijo del mostrador',()=>{
   const {QRCodeReader,BinaryBitmap,HybridBinarizer,RGBLuminanceSource}=zxing;
   const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
   const lum=hex=>rgb(hex).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
   const gray=hex=>{const [r,g,b]=rgb(hex);return Math.round((r+g*2+b)/4);};
-  for(const payload of ['ANVID:ANV-ABCDEF123456','ANVID-TEST:TEST-ABCDEF123456',`https://anvid-coffe.vercel.app/#p=${'ab'.repeat(24)}`]){
+  for(const payload of ['ANVID:ANV-ABCDEF123456','ANVID-TEST:TEST-ABCDEF123456',`https://anvid-coffe.vercel.app/#p=${'ab'.repeat(24)}`,printedGameUrl]){
     const {modules}=QRCode.create(payload,{errorCorrectionLevel:'M'}),scale=7,width=(modules.size+8)*scale,pixels=new Uint8ClampedArray(width*width).fill(gray(qrColors.paper));
     for(let r=0;r<modules.size;r++)for(let c=0;c<modules.size;c++)if(modules.get(r,c)){const color=qrInk(r,c,modules.size);assert.ok((lum(qrColors.paper)+.05)/(lum(color)+.05)>=4.5);for(let y=0;y<scale;y++)for(let x=0;x<scale;x++)pixels[((r+4)*scale+y)*width+(c+4)*scale+x]=gray(color);}
     assert.equal(new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(pixels,width,width)))).getText(),payload);

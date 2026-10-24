@@ -44,9 +44,12 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), rando
   const createdAt = Timestamp.fromDate(now);
   const code = `ANV-${randomBytes(6).toString('hex').toUpperCase()}`;
   const outcome = await db.runTransaction(async transaction => {
+    let requestToConsume;
     if(purchase){
       const [pass,sale]=await transaction.getAll(purchase.ref,purchase.saleRef),data=pass.data();
       if(!data)throw new ServiceError(409,'Este pase ya no está disponible. Consulta al equipo de Anvid.');
+      if(data.assignedParticipant&&data.assignedParticipant!==owner)throw new ServiceError(403,'Este juego está autorizado para otro navegador.');
+      requestToConsume=data.requestCode;
       if(data.usedAt){
         if(data.participant!==owner)throw new ServiceError(409,'Este pase ya fue utilizado. Solo permite un intento.');
         const prior=await transaction.get(db.doc(`coupons/${data.couponId}`));
@@ -72,6 +75,7 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), rando
     transaction.create(couponRef, coupon);
     if(purchase){
       transaction.update(purchase.ref,{usedAt:createdAt,participant:owner,couponId:couponRef.id});
+      if(requestToConsume){transaction.update(db.doc(`playRequests/${requestToConsume}`),{status:'used',usedAt:createdAt});markDashboardChange(transaction,db,'requests');}
       transaction.set(db.doc(`participants/${owner}`),{day,couponId:couponRef.id});
     }
     transaction.set(activityRef,{day,count:FieldValue.increment(1),version:1,updatedAt:createdAt},{merge:true});

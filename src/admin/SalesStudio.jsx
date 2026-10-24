@@ -38,7 +38,7 @@ export function SaleEntry({ onRecorded, onExpired,revision }) {
       {saved?<button key="new-sale" type="button" className="admin-primary" onClick={event=>{event.preventDefault();setSaved('');setPasses([]);}}>Nueva venta<Plus size={19}/></button>:<button key="record-sale" type="submit" className="admin-primary" disabled={pending || !valid}>{pending ? 'Guardando venta…' : 'Registrar venta'}<ArrowUpRight size={19}/></button>}
       {saved && <p className="sale-saved" role="status"><Check size={16}/>{saved}</p>}{error && <p className="admin-error" role="alert"><AlertCircle size={16}/>{error}</p>}
     </form>
-    {saved&&<PurchasePasses passes={passes} saleId={passSaleId} revision={revision} onExpired={onExpired}/>}
+    {saved&&<p className="manual-sale-authorization-note">Si el cliente va a jugar, utiliza «Ya registré esta venta» en la autorización de arriba. No hace falta entregarle un QR distinto.</p>}
   </section>;
 }
 

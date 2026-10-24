@@ -1,7 +1,7 @@
 import {useLayoutEffect,useRef} from 'react';
 
 const ns='http://www.w3.org/2000/svg';
-const selector='.financial-tile,.sales-chart,.daily-goal,.studio-locations,.daily-notes,.validation-panel,.studio-redemption-brief,.qr-showcase,.sales-history,.ledger-section,.activity-notes>.surface,.opinions-heading,.review-card';
+const selector='.financial-tile,.sales-chart,.daily-goal,.studio-locations,.daily-notes,.validation-panel,.studio-redemption-brief,.qr-showcase,.play-access-queue,.counter-qr,.sales-history,.ledger-section,.activity-notes>.surface,.opinions-heading,.review-card';
 export function folderPath(w,h,anchor,notch=false){
   const r=Math.min(27,w*.09,h*.2),step=Math.min(17,h*.075),tab=anchor;
   const top=`M ${r} 0 H ${tab-r} C ${tab} 0 ${tab} 0 ${tab+r*.35} ${step*.5} C ${tab+r*.7} ${step} ${tab+r} ${step} ${tab+r*1.6} ${step} H ${w-r} Q ${w} ${step} ${w} ${step+r} V ${h-r} Q ${w} ${h} ${w-r} ${h}`;

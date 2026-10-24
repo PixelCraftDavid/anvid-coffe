@@ -5,6 +5,7 @@ import { activityYear } from './activityStore.js';
 import { isTestCode,inspectTestCoupon,redeemTestCoupon } from './testCoupons.js';
 import { salesOverview } from './salesStore.js';
 import {dashboardRevision,parseDashboardRevision,markDashboardChange,eventsSince,eventRevision} from './dashboardLive.js';
+import {waitingRequests} from './playRequests.js';
 
 export function normalizeCouponCode(input) {
   if(typeof input!=='string' || input.length>180) throw new ServiceError(400,'Escribe el código del cupón o escanea su QR.');
@@ -58,15 +59,15 @@ export async function adminDashboard(db,now=new Date()) {
   // next cheap check even if these data queries already include that commit.
   const revision=await dashboardRevision(db,campaignDay(now));
   const days=Array.from({length:7},(_,i)=>campaignDay(new Date(now.getTime()-(6-i)*86400000)));
-  const [year,prize,stats,redemptions,page,reviews,sales]=await Promise.all([
+  const [year,prize,stats,redemptions,page,reviews,sales,waiting]=await Promise.all([
     activityYear(db,campaignDay(now)),
     db.doc(`dailyPrizes/${campaignDay(now)}`).get(),db.doc('stats/reviews').get(),db.doc('stats/redemptions').get(),couponPage(db),
     db.collection('reviews').orderBy('updatedAt','desc').limit(4).get(),
-    salesOverview(db,now),
+    salesOverview(db,now),waitingRequests(db,null,now),
   ]);
   const reviewStats=stats.data()||{count:0,sum:0};
   const counts=year.days.filter(item=>days.includes(item.day));
-  return {revision,day:campaignDay(now),updatedAt:now.toISOString(),activity:counts,activityYear:year,sales,summary:{today:counts.at(-1).count||0,prizeAvailable:!prize.exists,redeemed:redemptions.data()?.count||0,reviewCount:reviewStats.count,average:reviewStats.count?reviewStats.sum/reviewStats.count:0},...page,reviews:reviews.docs.map(row=>({rating:row.data().rating,comment:row.data().comment,createdAt:row.data().createdAt.toDate().toISOString()}))};
+  return {revision,day:campaignDay(now),updatedAt:now.toISOString(),activity:counts,activityYear:year,sales,waiting,summary:{today:counts.at(-1).count||0,prizeAvailable:!prize.exists,redeemed:redemptions.data()?.count||0,reviewCount:reviewStats.count,average:reviewStats.count?reviewStats.sum/reviewStats.count:0},...page,reviews:reviews.docs.map(row=>({rating:row.data().rating,comment:row.data().comment,createdAt:row.data().createdAt.toDate().toISOString()}))};
 }
 
 export async function dashboardChanges(db,input,now=new Date()){
@@ -76,10 +77,11 @@ export async function dashboardChanges(db,input,now=new Date()){
   if(events.size>50)return {requiresSnapshot:true};
   if(events.empty)return {revision:since,unchanged:true};
   const revision={...since,...eventRevision(events.docs.at(-1),day)},changed=[];
-  for(const row of events.docs){const topic=row.data().topic;if(!['sales','reviews','coupons'].includes(topic))continue;if(!changed.includes(topic))changed.push(topic);revision[topic]=row.id;}
+  for(const row of events.docs){const topic=row.data().topic;if(!['sales','reviews','coupons','requests'].includes(topic))continue;if(!changed.includes(topic))changed.push(topic);revision[topic]=row.id;}
   const patch={revision,updatedAt:now.toISOString(),summary:{}};
   await Promise.all(changed.map(async topic=>{
     if(topic==='sales')patch.sales=await salesOverview(db,now);
+    if(topic==='requests')patch.waiting=await waitingRequests(db,null,now);
     if(topic==='reviews'){
       const stats=(await db.doc('stats/reviews').get()).data()||{count:0,sum:0};
       patch.summary.reviewCount=stats.count;patch.summary.average=stats.count?stats.sum/stats.count:0;

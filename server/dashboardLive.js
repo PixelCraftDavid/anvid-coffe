@@ -1,7 +1,7 @@
 import {FieldValue,FieldPath,Timestamp} from 'firebase-admin/firestore';
 import {ServiceError} from './firebase.js';
 
-export const liveTopics=['sales','reviews','coupons'];
+export const liveTopics=['sales','reviews','coupons','requests'];
 export const eventCollection='dashboardEvents';
 const idPattern=/^[A-Za-z0-9]{20}$/;
 // Unique commit-stamped events avoid shared write locks across operations.
@@ -18,7 +18,7 @@ export function parseDashboardRevision(input){
   if(!input)return null;
   if(typeof input!=='string'||input.length>350)throw new ServiceError(400,'No pudimos comprobar los cambios del panel.');
   let data;try{data=JSON.parse(input);}catch{/* Validation below. */}
-  if(data?.v!==2||!/^\d{4}-\d{2}-\d{2}$/.test(data.day||'')||!Number.isSafeInteger(data.seconds)||data.seconds<0||!Number.isInteger(data.nanos)||data.nanos<0||data.nanos>=1e9||!(data.id===''||idPattern.test(data.id))||liveTopics.some(topic=>!(data[topic]===''||idPattern.test(data[topic]))))throw new ServiceError(400,'No pudimos comprobar los cambios del panel.');
+  if(data?.v!==2||!/^\d{4}-\d{2}-\d{2}$/.test(data.day||'')||!Number.isSafeInteger(data.seconds)||data.seconds<0||!Number.isInteger(data.nanos)||data.nanos<0||data.nanos>=1e9||!(data.id===''||idPattern.test(data.id))||liveTopics.some(topic=>topic==='requests'&&data[topic]===undefined?false:!(data[topic]===''||idPattern.test(data[topic]))))throw new ServiceError(400,'No pudimos comprobar los cambios del panel.');
   return data;
 }
 export async function eventsSince(db,since){let query=db.collection(eventCollection).orderBy('stamp','asc').orderBy(FieldPath.documentId(),'asc');if(since.id)query=query.startAfter(new Timestamp(since.seconds,since.nanos),since.id);return query.limit(51).get();}
