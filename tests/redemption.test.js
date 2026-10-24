@@ -92,9 +92,10 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
   const old=process.env.ANVID_ADMIN_PASSWORD;process.env.ANVID_ADMIN_PASSWORD=privateTestPassword;
   const host='localhost:5174';
   const testNetwork=`127.1.${process.pid%255}.${Math.floor(Date.now()/1000)%255}`;
-  async function call(method,body,cookie='',origin=`http://${host}`){const headers={};let json;const req={method,url:'/api/admin?view=session',headers:{host,origin,'content-type':'application/json',cookie,'x-forwarded-for':testNetwork},body};const res={setHeader:(k,v)=>headers[k]=v,end:value=>json=JSON.parse(value)};await adminHandler(req,res);return {status:res.statusCode,headers,json};}
+  async function call(method,body,cookie='',origin=`http://${host}`,url='/api/admin?view=session'){const headers={};let json;const req={method,url,headers:{host,origin,'content-type':'application/json',cookie,'x-forwarded-for':testNetwork},body};const res={setHeader:(k,v)=>headers[k]=v,end:value=>json=JSON.parse(value)};await adminHandler(req,res);return {status:res.statusCode,headers,json};}
   try{
     assert.equal((await call('GET')).status,401);
+    assert.equal((await call('GET',undefined,'',`http://${host}`,'/api/admin?view=reviews')).status,401);
     assert.equal((await call('POST',{action:'createTestCoupon'})).status,401);
     assert.equal((await call('POST',{action:'recordSale',requestId:randomUUID(),quantity:1,locationId:'utvm'})).status,401);
     assert.equal((await call('POST',{action:'voidSale',saleId:randomUUID()})).status,401);
@@ -102,6 +103,8 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
     assert.equal((await call('POST',{action:'login',password:'incorrecta'})).status,401);
     const login=await call('POST',{action:'login',password:privateTestPassword});assert.equal(login.status,200);
     const cookie=login.headers['Set-Cookie'].split(';')[0];const state=await call('GET',undefined,cookie);assert.equal(state.status,200);assert.equal(state.json.authenticated,true);assert.match(state.headers['Cache-Control'],/no-store/);
+    const opinions=await call('GET',undefined,cookie,`http://${host}`,'/api/admin?view=reviews');assert.equal(opinions.status,200);assert.ok(Array.isArray(opinions.json.reviews));assert.ok(opinions.json.reviews.length<=20);assert.match(opinions.headers['Cache-Control'],/no-store/);assert.equal(typeof opinions.json.count,'number');
+    assert.equal((await call('GET',undefined,cookie,`http://${host}`,'/api/admin?view=reviews&cursor=invalid')).status,400);
     const qrTest=await call('POST',{action:'createTestCoupon'},cookie);assert.equal(qrTest.status,200);assert.equal(qrTest.json.coupon.test,true);
     const requestId=randomUUID();
     const sale=await call('POST',{action:'recordSale',requestId,quantity:1,locationId:'utvm'},cookie);assert.equal(sale.status,200);assert.equal(sale.json.sale.profitCents,2005);

@@ -14,7 +14,7 @@ Abrir el enlace privado e introducir esa contraseña. La sesión dura 8 horas y 
 
 ## Registrar ventas y consultar ganancias
 
-1. Entrar al panel. En **Un café más**, elegir **UTVM** o **Centro** y la cantidad vendida, después de cobrar.
+1. Entrar al panel y abrir **Ventas**. En **Un café más**, elegir **UTVM** o **Centro** y la cantidad vendida, después de cobrar.
 2. El precio base es **$30 MXN** y el costo aproximado **$9.95** por café. **Editar** permite registrar otros importes para esa venta; las anteriores conservan su precio/costo original.
 3. Pulsar **Registrar venta** y esperar la confirmación. **Nueva venta** prepara el siguiente registro. Un reintento de la misma solicitud no suma dos veces.
 4. El resumen de hoy muestra ingresos, costo y utilidad estimada. Esta utilidad no descuenta otros gastos ni cafés de cortesía; no es una utilidad neta contable.
@@ -26,7 +26,7 @@ Las ubicaciones del mapa representan zonas de referencia, no el puesto exacto ni
 ## Entregar un café
 
 1. El cliente abre su QR en el cupón o muestra la imagen PNG descargada. Los cupones anteriores siguen siendo reconocibles por su código.
-2. En el panel, pulsar **Escanear QR** y permitir la cámara, usar **Leer desde una imagen**, o escribir el código `ANV-…`. La imagen se descodifica en el dispositivo; no se sube a un servicio externo.
+2. Abrir **Canjes** y pulsar **Escanear QR** y permitir la cámara, usar **Leer desde una imagen**, o escribir el código `ANV-…`. La imagen se descodifica en el dispositivo; no se sube a un servicio externo.
 3. Revisar el código, fecha y estado devueltos por Firebase. Solo **Disponible** permite canjear un premio. **Sin premio**, código inexistente o duplicado no autorizan entrega.
 4. Cuando se vaya a entregar el café, pulsar **Marcar como canjeado → Confirmar entrega**. El servidor vuelve a comprobar el cupón dentro de una transacción.
 5. Esperar el estado **Canjeado**, su fecha y la confirmación. Un QR copiado, un segundo teléfono o un doble clic no pueden producir otro canje. Si hubo un corte de red, volver a consultar el código antes de entregar otro café.
@@ -35,7 +35,7 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 
 ## Probar el QR en tu celular sin gastar el premio
 
-1. Entrar al panel privado y abrir **Probar sin premio real → Crear QR de prueba**.
+1. Entrar al panel privado y abrir **Canjes → Probar sin premio real → Crear QR de prueba**.
 2. El código empieza por `TEST-` y se muestra **PRUEBA · SIN VALOR DE CANJE**. Pulsar **Guardar QR de prueba**.
 3. En el mismo celular, abrir **Leer desde una imagen → Elegir imagen del QR** y seleccionar la imagen guardada. Para probar la cámara, mostrar ese QR en otra pantalla y usar **Escanear QR** en el celular.
 4. Revisar el aviso de prueba y pulsar **Simular canje → Confirmar prueba**. Debe aparecer **Canjeado** y **El premio diario sigue intacto**. Volver a consultar ese mismo QR mantiene el estado usado; crear otro QR permite repetir la prueba.
@@ -44,11 +44,13 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 
 ## Dashboard y mapa por capas
 
+- Cinco apartados independientes: **Resumen**, **Ventas**, **Actividad**, **Opiniones** y **Canjes**. La barra lateral de computadora se convierte en navegación inferior en celular. Los enlaces guardan el apartado en la URL y funcionan con Atrás/Adelante. Solo las herramientas de la vista activa permanecen montadas.
+- El fondo wave, el café flotante y los detalles decorativos se mueven automáticamente. Se pausan al ocultar la pestaña o al salir de pantalla y respetan la preferencia de movimiento reducido. No hay botón para activarlos. Las cifras se actualizan después de registrar/anular una venta o canjear un cupón; **Actualizar panel** consulta cambios de otros dispositivos. Las animaciones no generan lecturas continuas de Firestore.
 - Tocar directamente el mapa anual lo convierte de 2D en 3D: las participaciones de cada día se elevan como columnas. Otro toque devuelve la vista plana. No hay un interruptor aparte. En 3D se puede arrastrar para girar. Las flechas consultan días; Enter o espacio cambian la perspectiva.
 - La transición dura 280 ms y puede invertirse durante su recorrido. El canje y su confirmación quedan estables. Movimiento reducido cambia la vista sin el recorrido animado.
 - El mapa ahora usa un único Canvas 2D con proyección isométrica. Se eliminaron las 365 estructuras y sus tres caras HTML, los filtros y las capas 3D individuales. Los días vacíos comparten un dibujo y solo las participaciones elevadas necesitan caras. La resolución se limita a 1,5 veces el tamaño visible; no hay bucle en reposo, ni trabajo al quedar fuera de pantalla o en una pestaña oculta. En plano se desliza para recorrer el año; en 3D se arrastra para girar. No se añadió Three.js ni otra dependencia.
 - Los datos son reales: tarjetas del día, cupo diario, canjes desde la activación, actividad de 365 días, cupones paginados y opiniones. **Actualizar** vuelve a consultarlos; no hay sondeos automáticos continuos. El mapa usa acumulados diarios y recupera los cupones anteriores sin duplicarlos. Una migración larga avanza 14 días por consulta y señala los días pendientes en vez de inventar ceros.
-- Los métodos de canje se abren desde controles compactos con un acordeón animado: **Escribir código**, **Escanear QR** y **Leer desde una imagen**. Las reseñas aparecen en tarjetas de estrellas, comentario y fecha, sin fotografías. Los comentarios largos pueden abrirse completos y la fila se desplaza manualmente.
+- Los métodos de canje se abren desde controles compactos con un acordeón animado: **Escribir código**, **Escanear QR** y **Leer desde una imagen**. En **Opiniones**, las reseñas aparecen en una cuadrícula de estrellas, comentario y fecha, sin fotografías. Los comentarios largos pueden abrirse completos y **Cargar más opiniones** consulta las siguientes 20, sin limitar el apartado a las cuatro más recientes.
 - En celular, el año plano se desplaza horizontalmente y su vista 3D se ajusta a la pantalla. La cámara se abre por acción del usuario y se detiene al cerrarla, leer un QR, ocultar la pestaña, cerrar sesión o desmontar su vista. La cámara física y sus permisos deben comprobarse en el dispositivo del propietario.
 
 ## Registros nuevos en Firestore
