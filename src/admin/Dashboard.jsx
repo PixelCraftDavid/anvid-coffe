@@ -4,10 +4,11 @@ import {adminRequest} from './api.js';
 import ActivityMap from './ActivityMap.jsx';
 import RedemptionStation from './RedemptionStation.jsx';
 import {SaleEntry,SalesChart,LocationMap,SalesHistory} from './SalesStudio.jsx';
-import {FinancialOverview,StudioHero,DailyGoal,RedemptionBrief} from './Studio.jsx';
+import {FinancialOverview,StudioHero,DailyGoal} from './Studio.jsx';
 import useDashboardSync from './useDashboardSync.js';
 import {mergeDashboardPatch,olderRevision} from './liveModel.js';
 import useFolderContours from './useFolderContours.js';
+import TestCoupon from './TestCoupon.jsx';
 import {WorkspaceNav,workspacePages,workspacePage,BusinessPulse,DailyNotes,ActivityNotes,ReviewDesk} from './Workspace.jsx';
 
 const dateText=value=>value&&Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('es-MX',{timeZone:'Etc/GMT+6',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'—';
@@ -81,14 +82,14 @@ export default function Dashboard({session,onExpired,onLogout,children}){
           <div className="studio-summary-foot"><BusinessPulse sales={data?.sales}/><DailyNotes data={data} dateText={dateText}/></div>
         </>}
         {navigation==='ventas'&&<>
-          <div className="sales-workbench"><SalesChart sales={data?.sales} period={period} onPeriod={setPeriod} loading={loading}/><SaleEntry onRecorded={refresh} onExpired={onExpired}/></div>
+          <div className="sales-workbench"><SalesChart sales={data?.sales} period={period} onPeriod={setPeriod} loading={loading}/><SaleEntry revision={data?.revision?.coupons} onRecorded={refresh} onExpired={onExpired}/></div>
           <LocationMap sales={data?.sales} period={period}/>
-          <SalesHistory sales={data?.sales} onChanged={refresh} onExpired={onExpired} dateText={dateText}/>
+          <SalesHistory revision={data?.revision?.coupons} sales={data?.sales} onChanged={refresh} onExpired={onExpired} dateText={dateText}/>
         </>}
         {navigation==='actividad'&&<><ActivityMap data={data?.activityYear} loading={loading}/><ActivityNotes data={data}/></>}
         {navigation==='opiniones'&&<ReviewDesk revision={data?.revision?.reviews} onExpired={onExpired} dateText={dateText}/>}
         {navigation==='canjes'&&<>
-          <div className="redemption-workbench"><RedemptionStation revision={data?.revision?.coupons} selectedCode={selectedCode} onCodeHandled={()=>setSelectedCode(null)} onRedeemed={refresh} onExpired={onExpired} dateText={dateText} Status={Status}/><RedemptionBrief data={data}/></div>
+          <div className="redemption-workbench"><RedemptionStation revision={data?.revision?.coupons} selectedCode={selectedCode} onCodeHandled={()=>setSelectedCode(null)} onRedeemed={refresh} onExpired={onExpired} dateText={dateText} Status={Status}/><TestCoupon showcase onExpired={onExpired} onInspect={code=>{setSelectedCode(code);document.getElementById('validar')?.scrollIntoView({behavior:'instant',block:'start'});}}/></div>
           <section className="ledger-section surface" aria-labelledby="coupons-title"><div className="section-heading"><div><h2 id="coupons-title">El recorrido de cada cupón.</h2><p>Emisión, disponibilidad y canje. Los más recientes primero.</p></div><Receipt size={25} strokeWidth={1.2}/></div><div className="ledger-filters" aria-label="Filtrar cupones">{[['all','Todos'],['available','Por canjear'],['used','Canjeados']].map(([value,label])=><button key={value} onClick={()=>setFilter(value)} aria-pressed={filter===value}>{label}</button>)}</div><div className="ledger-scroll"><table><thead><tr><th>Cupón</th><th>Emitido</th><th>Estado</th><th><span className="visually-hidden">Validar</span></th></tr></thead><tbody>{rows.map(coupon=><tr key={coupon.code}><td><span className="table-code">{coupon.code}</span><small>{coupon.won?'Café de cortesía':'Participación'}</small></td><td>{dateText(coupon.createdAt)}</td><td><Status coupon={coupon}/></td><td><button className="admin-icon-button" aria-label={`Revisar ${coupon.code}`} onClick={()=>{setSelectedCode(coupon.code);document.getElementById('validar')?.scrollIntoView({behavior:'instant',block:'start'});}}><ArrowUpRight size={18}/></button></td></tr>)}</tbody></table></div>{!rows.length&&!loading&&<div className="admin-empty"><Receipt size={25} strokeWidth={1.2}/><p>{filter==='all'?'Todavía no hay cupones registrados.':'No hay cupones de este tipo en la lista cargada.'}</p></div>}{data?.nextCursor&&<button className="admin-text-button ledger-more" disabled={more} onClick={nextPage}>{more?'Cargando…':'Cargar más cupones'}<ArrowRight size={15}/></button>}</section>
         </>}
       </div>

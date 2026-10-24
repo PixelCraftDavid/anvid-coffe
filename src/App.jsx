@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'motion/react';
 import { ArrowUpRight, ArrowRight, Coffee, Fingerprint, Check, Star, Download, Volume2, VolumeX, Vibrate, VibrateOff, Heart, ExternalLink } from 'lucide-react';
 import { cafe, readSaved, saveLocal } from './config';
-import { ensureCoffeeSession, loadCoffeeState, revealCoffee, submitCoffeeReview } from './coffeeApi.js';
+import { ensureCoffeeSession, loadCoffeeState, revealCoffee, submitCoffeeReview,acceptPlayPass,forgetPlayPass } from './coffeeApi.js';
 import FluidBackdrop from './FluidBackdrop';
 import CafeReviews from './CafeReviews';
 import CoffeeObjects from './CoffeeObjects';
@@ -16,7 +16,7 @@ import { createExperienceHaptics } from './experienceHaptics.js';
 import CoffeeWelcome from './CoffeeWelcome.jsx';
 import LiquidGlass from './LiquidGlass.jsx';
 import CouponQr from './CouponQr.jsx';
-import QRCode from 'qrcode';
+import {createQrCanvas} from './qrTexture.js';
 
 
 const ease = [0.23, 1, 0.32, 1];
@@ -166,8 +166,7 @@ async function savePass(play) {
   ctx.font = '24px sans-serif'; ctx.fillText('UN PEQUEÑO GOLPE DE SUERTE', 540, 265);
   ctx.font = 'italic 86px Georgia'; ctx.fillText('Un café para ti.', 540, 405);
   ctx.font = '25px sans-serif'; ctx.fillText('CUPÓN DE UN SOLO USO', 540, 465);
-  const qr=document.createElement('canvas');
-  await QRCode.toCanvas(qr,`ANVID:${play.code}`,{width:300,margin:4,errorCorrectionLevel:'M',color:{dark:'#26301f',light:'#f6f4ed'}});
+  const qr=createQrCanvas(`ANVID:${play.code}`).canvas;ctx.imageSmoothingEnabled=false;
   ctx.drawImage(qr,390,510,300,300);
   ctx.font = 'bold 46px monospace'; ctx.fillText(play.code, 540, 895);
   const timestamp=formatPrizeTimestamp(play.wonAt);
@@ -208,6 +207,11 @@ function ReviewForm({ onDone, saved, onSaved, compact = false, doneLabel = 'Volv
   </form>;
 }
 
+function PurchaseGate({titleRef,error,onPass}){
+  const [value,setValue]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
+  return <section className="game-face pass-gate"><Coffee size={30} strokeWidth={1}/><h1 ref={titleRef} tabIndex={-1}>Tu café trae<br/><em>una oportunidad.</em></h1><p className="screen-description">Compra tu café y escanea el pase<br/>que te entregue el equipo de Anvid.</p><form onSubmit={async event=>{event.preventDefault();if(busy)return;setBusy(true);setMessage('');try{acceptPlayPass(value);await onPass();}catch(error){setMessage(error.message);}finally{setBusy(false);}}}><label htmlFor="purchase-pass">¿Ya tienes tu pase?</label><input id="purchase-pass" value={value} onChange={event=>setValue(event.target.value)} placeholder="Pega el enlace o código de tu compra" maxLength={500} autoComplete="off" autoCapitalize="none" spellCheck="false" disabled={busy}/><Action type="submit" disabled={busy||!value.trim()}>{busy?'Comprobando…':'Abrir mi tarjeta'}</Action></form>{(message||error)&&<p className="form-error" role="alert">{message||error}</p>}<p className="gate-note">Un pase, un intento. Abrirlo no lo consume.<br/>Las reseñas del café siguen disponibles abajo.</p></section>;
+}
+
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(()=>!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [welcomeLanded,setWelcomeLanded]=useState(false);
@@ -217,6 +221,7 @@ export default function App() {
   const [connection, setConnection] = useState('loading');
   const [connectionError, setConnectionError] = useState('');
   const [ownReview, setOwnReview] = useState(null);
+  const [purchase,setPurchase]=useState(null);
   const [nextResetAt, setNextResetAt] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const [revealError, setRevealError] = useState('');
@@ -242,11 +247,11 @@ export default function App() {
     if(initial) {setConnection('loading');setConnectionError('');}
     try {
       const state = await (initial ? ensureCoffeeSession() : loadCoffeeState());
-      setPlay(state.coupon || {revealed:false,code:state.day}); setOwnReview(state.review); setNextResetAt(state.nextResetAt);setConnection('ready');
+      setPurchase(state.purchase);setPlay(state.coupon || {revealed:false,code:`${state.day}-${state.purchase?.id||'locked'}`}); setOwnReview(state.review); setNextResetAt(state.nextResetAt);setConnection('ready');
       setMode(current => ['scratch','result'].includes(current) ? (state.coupon ? 'result' : 'scratch') : current);
-    } catch(error) {setConnectionError(error.message); if(initial) setConnection('error');}
+    } catch(error) {setConnectionError(error.message);setConnection('error');}
   }
-  useEffect(()=>{restoreState(true);},[]);
+  useEffect(()=>{restoreState(true);const changed=()=>{if(location.hash.startsWith('#p='))restoreState();};window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
   useEffect(()=>{
     if(!nextResetAt) return;
     const due = () => {if(Date.now() >= Date.parse(nextResetAt) && !revealPending.current) restoreState();};
@@ -309,11 +314,12 @@ export default function App() {
         <ol className="game-steps" aria-label="Tu experiencia">{['Raspa', 'Descubre', 'Opina'].map((label, i) => <li key={label} className={i === step ? 'current' : i < step ? 'complete' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Check size={11}/> : `0${i + 1}`}</span>{label}</li>)}</ol>
         <AnimatePresence mode="wait" initial={false}>
           {mode === 'scratch' && connection !== 'ready' && <motion.section key="connection" initial={enter} animate={visible} exit={{opacity:0}} className="game-face connection-face" aria-busy={connection === 'loading'}><Coffee size={30} strokeWidth={1}/><h1 ref={titleRef} tabIndex={-1}>Tu pausa<br/><em>empieza aquí.</em></h1><p className="screen-description" role="status">{connection === 'loading' ? 'Preparando tu tarjeta de hoy…' : connectionError}</p>{connection === 'error' && <Action onClick={()=>restoreState(true)}>Volver a intentar</Action>}</motion.section>}
-          {mode === 'scratch' && connection === 'ready' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
+          {mode === 'scratch' && connection === 'ready' && purchase?.status!=='available'&&<motion.div key="purchase-gate" initial={enter} animate={visible} exit={{opacity:0}}><PurchaseGate titleRef={titleRef} error={purchase?.message} onPass={()=>restoreState()}/></motion.div>}
+          {mode === 'scratch' && connection === 'ready' && purchase?.status==='available' && <motion.section key={`scratch-${play.code}`} initial={enter} animate={visible} exit={{ opacity: 0, transform: reduce ? 'none' : 'translateY(-8px)' }} transition={{ duration: 0.2, ease }} className="game-face">
             <h1 ref={titleRef} tabIndex={-1}>¿Y si hoy<br/><em>te toca a ti?</em></h1>
             <p className="screen-description">Raspa la tarjeta. Tu próximo café<br/>podría ir por nuestra cuenta.</p>
             <div className="standalone-ticket" aria-busy={revealing}><ScratchSurface key={play.code} pending={revealing} sound={sound} haptics={haptics.current} onScratchStart={prepareInteractionSound} onReveal={reveal}/></div>
-            <p className="daily-prize-note">Una tarjeta diaria por navegador · reinicio a medianoche (UTC−6).</p>
+            <p className="daily-prize-note">Un intento por café comprado. Tu pase se usa al revelar.</p>
             {revealError && <div className="api-inline-error" role="alert"><p>{revealError}</p><button className="text-button" onClick={reveal}>Reintentar mi resultado <ArrowRight size={14}/></button></div>}
             <div className="game-face-signature"><Coffee size={15} strokeWidth={1.2}/><span>UN PEQUEÑO RITUAL DE ANVID COFFE</span></div>
           </motion.section>}
@@ -322,7 +328,7 @@ export default function App() {
             {play.won ? <><h1 ref={titleRef} tabIndex={-1}>Hoy invita<br/><em>la suerte.</em></h1><p className="screen-description">¡Ganaste un café de cortesía!<br/>Guarda este pequeño golpe de suerte.</p></> : <div className="loss-coupon"><span className="loss-coupon-brand">anvid <small>coffe</small></span><h1 ref={titleRef} tabIndex={-1}>Hoy no tocó.<br/><em>Lo bonito sigue.</em></h1><p>Esta tarjeta no tenía premio.<br/>Ojalá este café te regale una pausa bonita.<br/>Que hoy encuentres una razón para sonreír.</p><span className="loss-coupon-bottom">UN MOMENTO BONITO TAMBIÉN CUENTA.</span></div>}
             {play.won && <div className="mini-prize"><div><Coffee size={23} strokeWidth={1.1}/><span>Un café para ti.<small>CUPÓN DE CAFÉ · ANVID COFFE</small></span></div><span className="mini-prize-code">{play.code}</span><PrizeTimestamp value={play.wonAt}/><CouponQr play={play}/><button className="text-button" disabled={downloading} onClick={async()=>{if(downloading)return;setDownloading(true);setDownloadError('');try{if(!await savePass(play))throw new Error();setSavedPass(true);}catch{setDownloadError('No pudimos descargarlo. Puedes mostrar el QR en esta pantalla.');}finally{setDownloading(false);}}}>{savedPass ? <Check size={14}/> : <Download size={14}/>} {downloading?'Preparando cupón…':savedPass ? 'Cupón guardado · descargar otra vez' : 'Guardar mi cupón'}</button>{downloadError&&<p role="alert" className="form-error">{downloadError}</p>}</div>}
             <div className="result-review-prompt"><Action onClick={() => openReview('result')}>Dejar una reseña de mi café</Action></div>
-            <span className="result-footnote">Tu opinión es sobre el café que probaste.</span>
+            <span className="result-footnote">Tu opinión es sobre el café que probaste.</span><button className="text-button another-pass" onClick={()=>{forgetPlayPass();setPurchase(null);setPlay({revealed:false,code:'locked'});setMode('scratch');}}>Tengo otro pase de compra <ArrowRight size={14}/></button>
           </motion.section>}
           {mode === 'paper-toss' && <motion.section key="paper-toss" initial={enter} animate={visible} exit={{opacity:0}} transition={{duration:.2,ease}} className="game-face paper-toss-face"><PaperToss titleRef={titleRef} sound={sound} onComplete={() => setMode('review')}/></motion.section>}
           {mode === 'review' && <motion.section key="review" initial={enter} animate={visible} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease }} className="game-face coffee-review-face">

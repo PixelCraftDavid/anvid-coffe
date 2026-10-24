@@ -3,6 +3,7 @@ import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
 import { ensureActivityDay } from './activityStore.js';
 import { markDashboardChange } from './dashboardLive.js';
+import {inspectPlayPass} from './playPasses.js';
 
 const dayMs = 86400000;
 const offsetMs = 6 * 3600000;
@@ -18,11 +19,22 @@ export function publicReview(data, id, participant) {
 
 export async function readState(db, participant, now = new Date()) {
   const day = campaignDay(now);
-  const [coupon, review] = await db.getAll(db.doc(`coupons/${day}_${participant}`), db.doc(`reviews/${participant}`));
-  return { day, nextResetAt: nextReset(now), coupon: publicCoupon(coupon.data()), review: review.exists ? publicReview(review.data(), review.id, participant) : null };
+  const [coupon, review,last] = await db.getAll(db.doc(`coupons/${day}_${participant}`), db.doc(`reviews/${participant}`),db.doc(`participants/${participant}`));
+  const recent=last.data()?.day===day?await db.doc(`coupons/${last.data().couponId}`).get():null;
+  return { day, nextResetAt: nextReset(now), purchaseRequired:true,coupon: publicCoupon(recent?.data()||coupon.data()), review: review.exists ? publicReview(review.data(), review.id, participant) : null };
 }
 
-export async function drawDailyCoupon(db, participant, { now = new Date(), random = randomInt } = {}) {
+export async function drawPurchaseCoupon(db,participant,token,options={}){
+  const purchase=await inspectPlayPass(db,token,participant);
+  return drawDailyCoupon(db,purchase.ref.id,{...options,purchase,owner:participant});
+}
+export async function purchaseState(db,participant,token){
+  const {data,ref}=await inspectPlayPass(db,token,participant);
+  const coupon=data.couponId?(await db.doc(`coupons/${data.couponId}`).get()).data():null;
+  return {purchase:{status:data.usedAt?'used':'available',ordinal:data.ordinal,id:ref.id.slice(0,12)},coupon:publicCoupon(coupon)};
+}
+// Internal draw primitive. The public endpoint exclusively calls drawPurchaseCoupon.
+export async function drawDailyCoupon(db, participant, { now = new Date(), random = randomInt,purchase=null,owner=participant } = {}) {
   const day = campaignDay(now);
   const couponRef = db.doc(`coupons/${day}_${participant}`);
   const dailyRef = db.doc(`dailyPrizes/${day}`);
@@ -32,6 +44,16 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), rando
   const createdAt = Timestamp.fromDate(now);
   const code = `ANV-${randomBytes(6).toString('hex').toUpperCase()}`;
   const outcome = await db.runTransaction(async transaction => {
+    if(purchase){
+      const [pass,sale]=await transaction.getAll(purchase.ref,purchase.saleRef),data=pass.data();
+      if(!data)throw new ServiceError(409,'Este pase ya no está disponible. Consulta al equipo de Anvid.');
+      if(data.usedAt){
+        if(data.participant!==owner)throw new ServiceError(409,'Este pase ya fue utilizado. Solo permite un intento.');
+        const prior=await transaction.get(db.doc(`coupons/${data.couponId}`));
+        return {coupon:prior.data(),isNew:false};
+      }
+      if(!sale.exists||sale.data().voidedAt)throw new ServiceError(409,'La compra de este pase fue anulada. Consulta al equipo de Anvid.');
+    }
     const [existing, daily, activity, draw] = await transaction.getAll(couponRef, dailyRef, activityRef, drawRef);
     if (existing.exists) return { coupon: existing.data(), isNew: false };
     const count = activity.data()?.count;
@@ -48,6 +70,10 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), rando
     const won = !daily.exists && attempt === winningAttempt;
     const coupon = { code, day, attempt, won, createdAt, wonAt: won ? createdAt : null };
     transaction.create(couponRef, coupon);
+    if(purchase){
+      transaction.update(purchase.ref,{usedAt:createdAt,participant:owner,couponId:couponRef.id});
+      transaction.set(db.doc(`participants/${owner}`),{day,couponId:couponRef.id});
+    }
     transaction.set(activityRef,{day,count:FieldValue.increment(1),version:1,updatedAt:createdAt},{merge:true});
     // Creation precondition + read conflict protects the one global slot.
     if (won) transaction.create(dailyRef, { code, couponId: couponRef.id, wonAt: createdAt });

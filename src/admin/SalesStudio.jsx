@@ -3,11 +3,13 @@ import { ArrowUpRight, ArrowUp, Check, Plus, Minus, MapPin, TrendingUp, Receipt,
 import { saleDefaults, saleLocations } from '../../shared/salesConfig.js';
 import { adminRequest } from './api.js';
 import { money, periodSales, chartGeometry, tilePoint } from './salesModel.js';
+import PurchasePasses from './PurchasePasses.jsx';
 
 const shortDate = day => new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
 const newRequestId = () => crypto.randomUUID();
 
-export function SaleEntry({ onRecorded, onExpired }) {
+export function SaleEntry({ onRecorded, onExpired,revision }) {
+  const [passes,setPasses]=useState([]),[passSaleId,setPassSaleId]=useState(null);
   const [locationId, setLocationId] = useState('utvm'), [quantity, setQuantity] = useState(1), [price, setPrice] = useState('30.00'), [cost, setCost] = useState('9.95'), [pending, setPending] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState('');
   const request = useRef(null), busy = useRef(false), mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -20,7 +22,7 @@ export function SaleEntry({ onRecorded, onExpired }) {
     busy.current = true; setPending(true); setError(''); setSaved('');
     try {
       const result = await adminRequest(null, { action: 'recordSale', requestId: request.current.id, ...input });
-      if (mounted.current) { request.current = null; setSaved(`${result.sale.quantity} ${result.sale.quantity === 1 ? 'café registrado' : 'cafés registrados'} en ${saleLocations.find(value => value.id === locationId).name}.`); setQuantity(1); }
+      if (mounted.current) { request.current = null; setPasses(result.passes||[]);setPassSaleId(result.saleId);setSaved(`${result.sale.quantity} ${result.sale.quantity === 1 ? 'café registrado' : 'cafés registrados'} en ${saleLocations.find(value => value.id === locationId).name}.`); setQuantity(1); }
       onRecorded();
     } catch (error) { if (mounted.current) { if (error.status === 401) onExpired(); else setError(error.message); } }
     finally { busy.current = false; if (mounted.current) setPending(false); }
@@ -33,9 +35,10 @@ export function SaleEntry({ onRecorded, onExpired }) {
       <div className="sale-quantity-row"><label htmlFor="sale-quantity">¿Cuántos cafés?</label><div className="quantity-control"><button type="button" disabled={pending || Number(quantity) <= 1} onClick={() => setQuantity(value => Math.max(1, Number(value) - 1))} aria-label="Un café menos"><Minus size={15}/></button><input id="sale-quantity" aria-label="Cantidad de cafés" type="number" inputMode="numeric" min="1" max="100" required value={quantity} onChange={event => setQuantity(event.target.value)} disabled={pending}/><button type="button" disabled={pending || Number(quantity) >= 100} onClick={() => setQuantity(value => Math.min(100, Number(value) + 1))} aria-label="Un café más"><Plus size={15}/></button></div></div>
       <details className="sale-unit-details"><summary>Precio {money(input.unitPriceCents)} · costo {money(input.unitCostCents)} <span>Editar</span></summary><div><label>Precio por café<input type="number" inputMode="decimal" min="0" max="10000" step="0.01" required value={price} disabled={pending} onChange={event => setPrice(event.target.value)}/></label><label>Costo por café<input type="number" inputMode="decimal" min="0" max="10000" step="0.01" required value={cost} disabled={pending} onChange={event => setCost(event.target.value)}/></label></div></details>
       <div className="sale-total"><span>Total de la venta <small>MXN</small></span><strong>{money(valid ? input.unitPriceCents * input.quantity : 0)}</strong></div>
-      {saved?<button key="new-sale" type="button" className="admin-primary" onClick={event=>{event.preventDefault();setSaved('');}}>Nueva venta<Plus size={19}/></button>:<button key="record-sale" type="submit" className="admin-primary" disabled={pending || !valid}>{pending ? 'Guardando venta…' : 'Registrar venta'}<ArrowUpRight size={19}/></button>}
+      {saved?<button key="new-sale" type="button" className="admin-primary" onClick={event=>{event.preventDefault();setSaved('');setPasses([]);}}>Nueva venta<Plus size={19}/></button>:<button key="record-sale" type="submit" className="admin-primary" disabled={pending || !valid}>{pending ? 'Guardando venta…' : 'Registrar venta'}<ArrowUpRight size={19}/></button>}
       {saved && <p className="sale-saved" role="status"><Check size={16}/>{saved}</p>}{error && <p className="admin-error" role="alert"><AlertCircle size={16}/>{error}</p>}
     </form>
+    {saved&&<PurchasePasses passes={passes} saleId={passSaleId} revision={revision} onExpired={onExpired}/>}
   </section>;
 }
 
@@ -85,16 +88,19 @@ export function LocationMap({ sales, period }) {
   </section>;
 }
 
-export function SalesHistory({ sales, onChanged, onExpired, dateText }) {
+export function SalesHistory({ sales, onChanged, onExpired, dateText,revision }) {
   const [chosen, setChosen] = useState(null), [pending, setPending] = useState(false), [error, setError] = useState('');
+  const [passView,setPassView]=useState(null),[passLoading,setPassLoading]=useState(false);
+  async function openPasses(sale){setPassLoading(true);setError('');setPassView(null);try{const result=await adminRequest({view:'passes',saleId:sale.id});setPassView(result);}catch(error){if(error.status===401)onExpired();else setError(error.message);}finally{setPassLoading(false);}}
   const dialog = useRef(null), cancel = useRef(null), trigger = useRef(null), busy = useRef(false);
   async function voidRecord() {
     if (busy.current || !chosen) return; busy.current = true; setPending(true); setError('');
-    try { await adminRequest(null, { action: 'voidSale', saleId: chosen.id }); dialog.current.close(); setChosen(null); onChanged(); }
+    try { await adminRequest(null, { action: 'voidSale', saleId: chosen.id }); dialog.current.close(); setChosen(null);setPassView(null); onChanged(); }
     catch (error) { if (error.status === 401) onExpired(); else setError(error.message); }
     finally { busy.current = false; setPending(false); }
   }
-  return <section className="sales-history surface" aria-labelledby="sales-history-title"><div className="section-heading"><div><h2 id="sales-history-title">Cada venta cuenta.</h2><p>Últimos 20 registros. Las anulaciones conservan su historial.</p></div><Receipt size={22} strokeWidth={1.4}/></div><div className="ledger-scroll"><table><thead><tr><th>Fecha</th><th>Punto</th><th>Cafés</th><th>Ingreso</th><th>Utilidad est.</th><th><span className="visually-hidden">Corregir</span></th></tr></thead><tbody>{sales?.recentSales.map(sale => <tr key={sale.id} className={sale.voidedAt ? 'is-voided' : ''}><td>{dateText(sale.createdAt)}{sale.voidedAt && <small>Anulada</small>}</td><td>{saleLocations.find(location => location.id === sale.locationId)?.name || sale.locationId}</td><td>{sale.quantity}</td><td>{money(sale.revenueCents)}</td><td>{money(sale.profitCents)}</td><td>{!sale.voidedAt && <button className="admin-icon-button" aria-label={`Anular venta de ${sale.quantity} ${sale.quantity===1?'café':'cafés'} del ${dateText(sale.createdAt)}`} onClick={event => { trigger.current = event.currentTarget; setChosen(sale); setError(''); dialog.current.showModal(); cancel.current?.focus(); }}><RotateCcw size={15}/></button>}</td></tr>)}</tbody></table></div>{sales && !sales.recentSales.length && <div className="admin-empty"><Receipt size={24}/><p>Tu primera venta aparecerá aquí.<br/>Regístrala en «Un café más» después de cobrar.</p></div>}
-    <dialog ref={dialog} className="redemption-dialog" onClose={() => trigger.current?.focus()} onCancel={event => { if (pending) event.preventDefault(); }}><span className="confirmation-icon"><RotateCcw size={23}/></span><h2>¿Anular esta venta?</h2><p>{chosen?.quantity===1?'Se descontará':'Se descontarán'} {chosen?.quantity} {chosen?.quantity===1?'café':'cafés'} y {money(chosen?.revenueCents)} de los ingresos. El registro se conservará como anulado. No cambia cupones ni premios.</p><button className="admin-primary" disabled={pending} onClick={voidRecord}>{pending ? 'Anulando…' : 'Confirmar anulación'}<Check size={17}/></button><button ref={cancel} className="admin-text-button" disabled={pending} onClick={() => dialog.current.close()}>Conservar la venta</button>{error && <p className="admin-error" role="alert">{error}</p>}</dialog>
+  return <section className="sales-history surface" aria-labelledby="sales-history-title"><div className="section-heading"><div><h2 id="sales-history-title">Cada venta cuenta.</h2><p>Últimos 20 registros. Las anulaciones conservan su historial.</p></div><Receipt size={22} strokeWidth={1.4}/></div><div className="ledger-scroll"><table><thead><tr><th>Fecha</th><th>Punto</th><th>Cafés</th><th>Ingreso</th><th>Utilidad est.</th><th>Pases</th><th><span className="visually-hidden">Corregir</span></th></tr></thead><tbody>{sales?.recentSales.map(sale => <tr key={sale.id} className={sale.voidedAt ? 'is-voided' : ''}><td>{dateText(sale.createdAt)}{sale.voidedAt && <small>Anulada</small>}</td><td>{saleLocations.find(location => location.id === sale.locationId)?.name || sale.locationId}</td><td>{sale.quantity}</td><td>{money(sale.revenueCents)}</td><td>{money(sale.profitCents)}</td><td>{!sale.voidedAt&&<button type="button" className="admin-text-button" disabled={passLoading} aria-label={`Ver pases de la venta ${sale.id}`} onClick={()=>openPasses(sale)}>Ver QR</button>}</td><td>{!sale.voidedAt && <button className="admin-icon-button" aria-label={`Anular venta de ${sale.quantity} ${sale.quantity===1?'café':'cafés'} del ${dateText(sale.createdAt)}`} onClick={event => { trigger.current = event.currentTarget; setChosen(sale); setError(''); dialog.current.showModal(); cancel.current?.focus(); }}><RotateCcw size={15}/></button>}</td></tr>)}</tbody></table></div>{sales && !sales.recentSales.length && <div className="admin-empty"><Receipt size={24}/><p>Tu primera venta aparecerá aquí.<br/>Regístrala en «Un café más» después de cobrar.</p></div>}
+    {passLoading&&<p role="status">Consultando pases…</p>}{passView&&<div className="history-passes"><button type="button" className="admin-text-button" onClick={()=>setPassView(null)}>Cerrar pases</button><PurchasePasses key={passView.saleId} passes={passView.passes} saleId={passView.saleId} revision={revision} onExpired={onExpired}/></div>}{error&&!chosen&&<p className="admin-error" role="alert">{error}</p>}
+    <dialog ref={dialog} className="redemption-dialog" onClose={() => trigger.current?.focus()} onCancel={event => { if (pending) event.preventDefault(); }}><span className="confirmation-icon"><RotateCcw size={23}/></span><h2>¿Anular esta venta?</h2><p>{chosen?.quantity===1?'Se descontará':'Se descontarán'} {chosen?.quantity} {chosen?.quantity===1?'café':'cafés'} y {money(chosen?.revenueCents)} de los ingresos. El registro se conservará como anulado. Bloquea los pases que todavía no se han usado; los premios ya emitidos se conservan.</p><button className="admin-primary" disabled={pending} onClick={voidRecord}>{pending ? 'Anulando…' : 'Confirmar anulación'}<Check size={17}/></button><button ref={cancel} className="admin-text-button" disabled={pending} onClick={() => dialog.current.close()}>Conservar la venta</button>{error && <p className="admin-error" role="alert">{error}</p>}</dialog>
   </section>;
 }

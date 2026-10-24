@@ -96,6 +96,7 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
   try{
     assert.equal((await call('GET')).status,401);
     assert.equal((await call('GET',undefined,'',`http://${host}`,'/api/admin?view=reviews')).status,401);
+    assert.equal((await call('GET',undefined,'',`http://${host}`,'/api/admin?view=passes')).status,401);
     assert.equal((await call('GET',undefined,'',`http://${host}`,'/api/admin?view=live')).status,401);
     assert.equal((await call('POST',{action:'createTestCoupon'})).status,401);
     assert.equal((await call('POST',{action:'recordSale',requestId:randomUUID(),quantity:1,locationId:'utvm'})).status,401);

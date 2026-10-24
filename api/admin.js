@@ -5,6 +5,7 @@ import { adminDashboard, couponPage, inspectCoupon, redeemCoupon, dashboardChang
 import { createTestCoupon } from '../server/testCoupons.js';
 import { recordSale, voidSale } from '../server/salesStore.js';
 import { listReviews } from '../server/coffeeStore.js';
+import {salePasses} from '../server/playPasses.js';
 
 async function readBody(req) {
   let body=req.body;
@@ -39,6 +40,7 @@ export default async function handler(req,res) {
       if(url.searchParams.get('view')==='session')return send(200,{authenticated:true,expiresAt:session.expiresAt,local:!!process.env.FIRESTORE_EMULATOR_HOST&&!process.env.VERCEL});
       if(url.searchParams.get('view')==='coupons')return send(200,await couponPage(db,url.searchParams.get('cursor')));
       if(url.searchParams.get('view')==='reviews')return send(200,await listReviews(db,null,url.searchParams.get('cursor')));
+      if(url.searchParams.get('view')==='passes')return send(200,await salePasses(db,url.searchParams.get('saleId')));
       if(url.searchParams.get('view')==='live')return send(200,await dashboardChanges(db,url.searchParams.get('since')));
       return send(200,await adminDashboard(db));
     }

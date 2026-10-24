@@ -16,12 +16,20 @@ Abrir el enlace privado e introducir esa contraseña. La sesión dura 8 horas y 
 
 1. Entrar al panel y abrir **Ventas**. En **Un café más**, elegir **UTVM** o **Centro** y la cantidad vendida, después de cobrar.
 2. El precio base es **$30 MXN** y el costo aproximado **$9.95** por café. **Editar** permite registrar otros importes para esa venta; las anteriores conservan su precio/costo original.
-3. Pulsar **Registrar venta** y esperar la confirmación. **Nueva venta** prepara el siguiente registro. Un reintento de la misma solicitud no suma dos veces.
+3. Pulsar **Registrar venta** y esperar la confirmación. Aparece **El pase de su café**, con un QR independiente por cada café registrado. Si vendiste varios, **Seleccionar pase** permite entregar uno a cada comprador. **Nueva venta** prepara el siguiente registro. Un reintento no duplica la venta ni sus pases.
 4. El resumen de hoy muestra ingresos, costo y utilidad estimada. Esta utilidad no descuenta otros gastos ni cafés de cortesía; no es una utilidad neta contable.
 5. En **El ritmo de tus ventas**, elegir 7, 30 o 90 días y alternar ingresos/utilidad. El control **Consultar día** funciona por teclado. El mapa compara la cantidad vendida en cada zona durante ese mismo periodo.
-6. Una venta mal capturada puede anularse con el icono de regreso en **Cada venta cuenta → Confirmar anulación**. La anulación conserva sus importes y fecha originales, añade un sello de anulación y corrige los totales de ese día. No procesa un reembolso ni toca cupones o premios.
+6. Una venta mal capturada puede anularse con el icono de regreso en **Cada venta cuenta → Confirmar anulación**. Conserva los importes originales, añade un sello y corrige los totales de ese día. También bloquea sus pases pendientes. No procesa un reembolso ni cambia premios ya emitidos.
 
-Las ubicaciones del mapa representan zonas de referencia, no el puesto exacto ni la ubicación de clientes. Los datos vectoriales de OpenStreetMap se sirven localmente y conservan su licencia en `/maps/README.txt`; no hay geolocalización, mosaicos externos ni claves de mapas. Al comenzar, los importes son cero hasta registrar ventas reales: no se deducen ventas de las tarjetas del juego. Este registro no implementa por sí solo la autorización de compra para jugar.
+Las ubicaciones del mapa representan zonas de referencia, no el puesto exacto ni la ubicación de clientes. Los datos vectoriales de OpenStreetMap se sirven localmente y conservan su licencia en `/maps/README.txt`; no hay geolocalización, mosaicos externos ni claves de mapas. Al comenzar, los importes son cero hasta registrar ventas reales: no se deducen ventas de las tarjetas del juego.
+
+## Entregar el pase para jugar
+
+Después de cobrar y registrar la venta, muestra el QR de **El pase de su café** al comprador. También puedes guardar el QR plano o copiar el enlace y compartirlo tú. **Abrir el pase** permite revisarlo: abrir, escanear o recargar no consume el intento. El cliente puede pegar el enlace o código en la página si lo necesita. **Cada venta cuenta → Ver QR** recupera los mismos pases; no genera otros. Las ventas anteriores a esta actualización no reciben pases retroactivos.
+
+La página permite raspar únicamente con un pase válido. Al revelar el resultado, el servidor comprueba la compra y consume el pase junto con el sorteo en una sola transacción. El mismo navegador recupera ese resultado, incluso si repite una solicitud. Otro navegador no puede volver a usarlo. Una nueva compra trae otro pase, aunque se use el mismo teléfono: sustituye el anterior límite por navegador/día. El ganador diario sigue el mismo sorteo entre las primeras 15 participaciones válidas del día de revelación.
+
+Estos pases no caducan automáticamente: no se acordó una fecha de vencimiento. Pueden usarse después de comprar, mientras la venta no haya sido anulada. Son comprobantes al portador: si alguien comparte un pase pendiente, quien lo use primero consume su único intento; no verifican identidad. Entrar solo al enlace general no permite jugar. Las reseñas siguen disponibles sin condicionar el premio. El QR del premio ganador es diferente y se usa exclusivamente para el canje.
 
 ## Entregar un café
 
@@ -35,12 +43,14 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 
 ## Probar el QR en tu celular sin gastar el premio
 
-1. Entrar al panel privado y abrir **Canjes → Probar sin premio real → Crear QR de prueba**.
+1. Entrar al panel privado y abrir **Canjes → Un QR. Otra dimensión → Crear QR de prueba**. **Probar sin premio real** lleva directamente a ese ejemplo.
 2. El código empieza por `TEST-` y se muestra **PRUEBA · SIN VALOR DE CANJE**. Pulsar **Guardar QR de prueba**.
 3. En el mismo celular, abrir **Leer desde una imagen → Elegir imagen del QR** y seleccionar la imagen guardada. Para probar la cámara, mostrar ese QR en otra pantalla y usar **Escanear QR** en el celular.
 4. Revisar el aviso de prueba y pulsar **Simular canje → Confirmar prueba**. Debe aparecer **Canjeado** y **El premio diario sigue intacto**. Volver a consultar ese mismo QR mantiene el estado usado; crear otro QR permite repetir la prueba.
 
 **Probar este canje** carga directamente el código en el validador cuando solo se quiere comprobar la confirmación. Estos registros viven exclusivamente en `testCoupons`, usan el prefijo QR `ANVID-TEST:`, exigen sesión privada y nunca modifican `dailyPrizes`, `dailyDraws`, `coupons`, `dailyActivity` ni `stats/redemptions`. No aparecen en el historial o las cantidades reales. Los códigos normales conservan su comportamiento y su confirmación de entrega.
+
+El QR se muestra plano de forma predeterminada. Tocarlo eleva una escena de café con taza cuadrada, asa, vapor, granos y detalles de jardín hechos de vóxeles. Otro toque vuelve a la vista superior. Café, caramelo, crema y verdes comparten la misma paleta en ambas vistas. La vista plana y la descarga conservan el código real y su margen libre; la escena 3D es una presentación y debe devolverse al plano para escanear. El ejemplo inicial es solo visual; **Crear QR de prueba** lo sustituye por un TEST registrado y válido. El mismo componente aparece en pases y cupones ganadores.
 
 ## Dashboard y mapa por capas
 
@@ -64,10 +74,12 @@ No se definió una caducidad por el propietario, así que no se inventa una fech
 - `testCoupons`: códigos `TEST-…`, fechas y estado de canje de pruebas privadas. No tienen valor de premio ni se mezclan con las estadísticas reales.
 - `sales`: cantidad, zona, precio/costo en centavos, importes calculados, fecha del servidor y eventual fecha de anulación. Clave idempotente por solicitud.
 - `dailySales`: totales diarios y por zona para ingresos, costo y utilidad estimada. Se actualizan en la misma transacción que cada registro o anulación.
+- `playPasses`: identificador derivado de un token aleatorio de 192 bits, venta, número de pase, creación y eventual consumo con navegador y cupón. Los tokens se guardan solo en el registro privado de la venta para volver a entregar los mismos QR. La API pública nunca lista pases.
+- `participants`: referencia al último cupón del navegador para recuperar su resultado. No contiene nombres ni datos de contacto.
 - `dashboardEvents`: un registro pequeño con tema y fecha de confirmación por cambio real, creado dentro de la misma transacción. No contiene contraseñas ni comentarios. Permite consultar cambios recientes con un cursor preciso, sin recorrer todos los registros ni mantener conexiones abiertas. Reintentos idénticos y canjes TEST no generan eventos reales.
 
 Las reglas de Firestore siguen cerradas. El servidor usa IAM y valida origen, contraseña, sesión, tamaño y código. Las respuestas privadas llevan `no-store`. La ruta tiene `noindex`, `no-referrer` y protección contra incrustación en marcos.
 
 ## Pruebas
 
-Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 42 pruebas, incluidas las 15 posiciones ganadoras, aislamiento TEST, canje de un solo uso, mapa ligero, sesiones privadas, ventas concurrentes, centavos exactos, anulaciones idempotentes y conservación de costos históricos. También comprueba los cambios atómicos, consultas sin cambios, cursores, mezcla de datos, pausa, recuperación y reintentos. No se crean ni canjean premios ni ventas reales automáticamente.
+Con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088`, `npm test` ejecuta 48 pruebas, incluidas las 15 posiciones ganadoras, aislamiento TEST, canje de un solo uso, mapa ligero, sesiones privadas, ventas concurrentes, centavos exactos, anulaciones idempotentes y conservación de costos históricos. También comprueba cambios atómicos, consultas sin cambios, cursores, pausa, reintentos, pases ligados a compras, uso simultáneo, lectura de QR en color y límites de la escena de vóxeles. No se crean ni canjean premios ni ventas reales automáticamente.

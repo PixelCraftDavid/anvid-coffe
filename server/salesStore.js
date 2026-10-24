@@ -3,6 +3,7 @@ import { ServiceError } from './firebase.js';
 import { campaignDay } from './coffeeStore.js';
 import { saleDefaults, saleLocations } from '../shared/salesConfig.js';
 import { markDashboardChange } from './dashboardLive.js';
+import {createSalePasses,saveSalePasses,salePasses} from './playPasses.js';
 
 const emptyTotals = () => ({ quantity: 0, orders: 0, revenueCents: 0, costCents: 0, profitCents: 0 });
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -30,7 +31,7 @@ function changeDay(previous, sale, sign, now) {
 export async function recordSale(db, value, now = new Date()) {
   const input = validateSale(value), day = campaignDay(now), createdAt = Timestamp.fromDate(now);
   const saleRef = db.doc(`sales/${input.requestId}`), dayRef = db.doc(`dailySales/${day}`);
-  const sale = { ...input, day, createdAt, revenueCents: input.quantity * input.unitPriceCents, costCents: input.quantity * input.unitCostCents, profitCents: input.quantity * (input.unitPriceCents - input.unitCostCents), voidedAt: null };
+  const sale = { ...input, day, createdAt, revenueCents: input.quantity * input.unitPriceCents, costCents: input.quantity * input.unitCostCents, profitCents: input.quantity * (input.unitPriceCents - input.unitCostCents), voidedAt: null,passTokens:createSalePasses(input.quantity) };
   const result = await db.runTransaction(async transaction => {
     const [existing, daily] = await transaction.getAll(saleRef, dayRef);
     if (existing.exists) {
@@ -39,11 +40,12 @@ export async function recordSale(db, value, now = new Date()) {
       return { sale: saved, isNew: false };
     }
     transaction.create(saleRef, sale);
+    saveSalePasses(transaction,db,saleRef.id,sale.passTokens,createdAt);
     transaction.set(dayRef, changeDay(daily.data(), sale, 1, createdAt));
     markDashboardChange(transaction,db,'sales',now);
     return { sale, isNew: true };
   });
-  return { sale: publicSale(result.sale, saleRef.id), isNew: result.isNew };
+  return { sale: publicSale(result.sale, saleRef.id), isNew: result.isNew,...await salePasses(db,saleRef.id) };
 }
 export async function voidSale(db, id, now = new Date()) {
   if (!idPattern.test(id || '')) throw new ServiceError(400, 'Esta venta no es válida.');

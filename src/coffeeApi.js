@@ -1,3 +1,13 @@
+import {tokenFromText} from './playPassToken.js';
+let playToken;
+function saveToken(token){playToken=token;try{token?sessionStorage.setItem('anvid.playPass',token):sessionStorage.removeItem('anvid.playPass');}catch{/* The in-memory pass still works. */}}
+export function acceptPlayPass(value){const token=tokenFromText(value,location.origin);if(!token)throw new Error('Pega el enlace completo o el código de participación de tu compra.');saveToken(token);}
+export function forgetPlayPass(){saveToken(null);}
+function currentToken(){
+  if(location.hash.startsWith('#p=')){acceptPlayPass(`${location.origin}/${location.hash}`);history.replaceState(null,'',`${location.pathname}${location.search}#inicio`);}
+  if(playToken===undefined){try{playToken=sessionStorage.getItem('anvid.playPass');}catch{playToken=null;}}
+  return playToken;
+}
 async function request(view, payload, signal) {
   let response;
   try {
@@ -15,8 +25,13 @@ async function request(view, payload, signal) {
   return data;
 }
 let sessionReady;
-export function loadCoffeeState(signal) { return request({ view: 'state' }, null, signal); }
+export async function loadCoffeeState(signal) {
+  const state=await request({view:'state'},null,signal);let token;
+  try{token=currentToken();}catch(error){forgetPlayPass();history.replaceState(null,'',`${location.pathname}${location.search}#inicio`);return {...state,coupon:null,purchase:{status:'invalid',message:error.message}};}
+  if(!token)return {...state,purchase:null};
+  try{return {...state,...await request(null,{action:'passState',token},signal)};}catch(error){if(error.name==='AbortError')throw error;return {...state,coupon:null,purchase:{status:'invalid',message:error.message}};}
+}
 export function ensureCoffeeSession() { return sessionReady ||= loadCoffeeState().catch(error => { sessionReady = null; throw error; }); }
-export async function revealCoffee() { await ensureCoffeeSession(); return request(null, { action: 'play' }); }
+export async function revealCoffee() { await ensureCoffeeSession(); return request(null, { action: 'play',token:currentToken() }); }
 export async function submitCoffeeReview(rating, comment) { await ensureCoffeeSession(); return request(null, { action: 'review', rating, comment }); }
 export async function loadCoffeeReviews(cursor, signal) { await ensureCoffeeSession(); return request({ view: 'reviews', ...(cursor ? { cursor } : {}) }, null, signal); }

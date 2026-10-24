@@ -1,6 +1,6 @@
 import { firebaseConnection, ServiceError } from '../server/firebase.js';
 import { getParticipant, requireSameOrigin } from '../server/session.js';
-import { drawDailyCoupon, listReviews, readState, writeReview } from '../server/coffeeStore.js';
+import { drawPurchaseCoupon,purchaseState, listReviews, readState, writeReview } from '../server/coffeeStore.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -25,7 +25,8 @@ export default async function handler(req, res) {
     }
     if (typeof body === 'string') { if (Buffer.byteLength(body) > 8192) throw new ServiceError(413, 'La solicitud es demasiado grande.'); try { body = JSON.parse(body); } catch { throw new ServiceError(400, 'No pudimos leer la solicitud.'); } }
     if (!body || Array.isArray(body) || typeof body !== 'object') throw new ServiceError(400, 'No pudimos leer la solicitud.');
-    if (body.action === 'play') return send(200, await drawDailyCoupon(db, participant));
+    if(body.action==='passState')return send(200,await purchaseState(db,participant,body.token));
+    if (body.action === 'play') return send(200, await drawPurchaseCoupon(db, participant,body.token));
     if (body.action === 'review') return send(200, await writeReview(db, participant, body));
     throw new ServiceError(400, 'Solicitud no reconocida.');
   } catch (error) {

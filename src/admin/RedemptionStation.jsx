@@ -3,7 +3,6 @@ import {AnimatePresence,motion,useReducedMotion} from 'motion/react';
 import {QrCode,Plus,Minus,Camera,Image as ImageIcon,Keyboard,ArrowRight,RefreshCw,AlertCircle,ShieldCheck,Check,Coffee,CheckCircle2,Upload,FlaskConical} from 'lucide-react';
 import CameraReader from './CameraReader.jsx';
 import {adminRequest} from './api.js';
-import TestCoupon from './TestCoupon.jsx';
 
 function Method({id,label,icon:Icon,active,onToggle,children,disabled}) {
   const reduce=useReducedMotion();
@@ -14,6 +13,7 @@ function Method({id,label,icon:Icon,active,onToggle,children,disabled}) {
 }
 
 export default function RedemptionStation({selectedCode,onCodeHandled,onRedeemed,onExpired,dateText,Status,revision}) {
+  const reduce=useReducedMotion();
   const [method,setMethod]=useState('code'),[code,setCode]=useState(''),[selected,setSelected]=useState(null),[working,setWorking]=useState(false),[reading,setReading]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('');
   const pending=useRef(false),mounted=useRef(true),fileInput=useRef(null),dialog=useRef(null),confirmButton=useRef(null),input=useRef(null);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
@@ -31,7 +31,7 @@ export default function RedemptionStation({selectedCode,onCodeHandled,onRedeemed
       <Method id="code" label="Escribir código" icon={Keyboard} active={method==='code'} disabled={disabled} onToggle={()=>toggle('code')}><form onSubmit={event=>{event.preventDefault();inspect();}}><label htmlFor="coupon-code">Código del cupón</label><div className="coupon-input-wrap"><input ref={input} id="coupon-code" value={code} onChange={event=>{setCode(event.target.value);setSelected(null);setSuccess('');setError('');}} placeholder="ANV-…" maxLength={180} autoComplete="off" autoCapitalize="characters" spellCheck="false" disabled={disabled}/><button type="submit" disabled={disabled||!code.trim()} aria-label="Comprobar cupón">{working?<RefreshCw size={17} className="is-refreshing"/>:<ArrowRight size={18}/>}</button></div></form></Method>
       <Method id="camera" label="Escanear QR" icon={Camera} active={method==='camera'} disabled={disabled} onToggle={()=>toggle('camera')}>{method==='camera'&&<CameraReader onCode={value=>{setCode(value);inspect(value);}} onClose={()=>setMethod('code')}/>}</Method>
       <Method id="image" label="Leer desde una imagen" icon={ImageIcon} active={method==='image'} disabled={disabled} onToggle={()=>toggle('image')}><p>Elige la foto o captura del cupón. Se lee en este dispositivo.</p><button className="admin-secondary" disabled={disabled} onClick={()=>fileInput.current?.click()}><Upload size={16}/>{reading?'Leyendo el QR…':'Elegir imagen del QR'}</button></Method>
-      <Method id="test" label="Probar sin premio real" icon={FlaskConical} active={method==='test'} disabled={disabled} onToggle={()=>toggle('test')}><TestCoupon onInspect={inspect} onExpired={onExpired}/></Method>
+      <button type="button" className="method-trigger test-example-jump" onClick={()=>document.getElementById('prueba-qr')?.scrollIntoView({behavior:reduce?'instant':'smooth',block:'start'})}><FlaskConical size={16}/><span>Probar sin premio real</span><ArrowRight size={15}/></button>
       <input ref={fileInput} className="visually-hidden" tabIndex={-1} type="file" accept="image/*" onChange={readImage}/>
     </div>
     {reading&&<p className="image-reading" role="status"><RefreshCw size={14} className="is-refreshing"/> Leyendo el código de la imagen…</p>}

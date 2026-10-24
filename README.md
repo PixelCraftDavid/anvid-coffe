@@ -22,7 +22,7 @@ Se usan los planes gratuitos elegidos por el propietario, sujetos a sus cuotas, 
 - Máximo un café ganador al día entre todos los participantes, con fechas del servidor y cambio de día a medianoche UTC−6. El servidor elige una posición uniforme entre la 1 y la 15 y la guarda en privado para ese día. Si llegan 15 participaciones nuevas habrá exactamente un ganador; los intentos posteriores pierden. Con menos de 15 puede que la posición ganadora todavía no se haya alcanzado.
 - Una transacción Firestore asigna la posición de cada nueva participación, crea el cupón y reserva el único premio diario de manera atómica. Reintentos del mismo navegador/día devuelven el mismo resultado y no consumen otra posición. El cliente no decide si gana ni proporciona la fecha o el código; la posición ganadora no se envía al navegador.
 - La actualización respeta los cupones y premios anteriores: si hoy ya hubo ganador, no entrega otro. Si aún no lo hubo, sortea entre las posiciones restantes hasta la 15; si ya existían 15 o más resultados perdedores, gana la siguiente participación nueva, sin alterar tarjetas emitidas.
-- Una cookie firmada HttpOnly identifica el navegador y conserva una tarjeta diaria. Borrar cookies o cambiar de navegador crea otra identidad; el límite global de un premio permanece. No se incluye validación de compras.
+- Una cookie firmada HttpOnly identifica el navegador. Cada café vendido genera un pase de compra aleatorio de un solo uso. Abrirlo no lo consume: el servidor lo comprueba y utiliza junto con el sorteo al revelar. Un reintento recupera el mismo resultado y otro navegador no puede reutilizar el pase. Otra compra puede jugar desde el mismo navegador. Compartir el enlace general ya no concede intentos; un pase pendiente sigue siendo transferible a quien lo use primero.
 - El cupón ganador y su PNG incluyen un QR local, sin servicios externos. El panel privado valida el código y lo marca una sola vez como canjeado en una transacción. Acceso por contraseña privada del servidor, sesión firmada y revocable, protección de origen y límite de intentos. Ver [ADMIN_GUIDE.md](ADMIN_GUIDE.md) para configurar y usar el dashboard 2D/3D.
 - Cupones: código, ganó/no ganó, día, fecha/hora de emisión y del premio. El cupón ganador se descarga como PNG con su fecha fija.
 - Reseñas: estrellas enteras de 1 a 5, comentario opcional de hasta 600 caracteres, creación y actualización. Una opinión por navegador, editable. Se muestran todas las calificaciones, con promedio global y páginas de 20 opiniones. No se piden datos personales y el premio no depende de dejar una reseña.
@@ -30,7 +30,7 @@ Se usan los planes gratuitos elegidos por el propietario, sujetos a sus cuotas, 
 
 ## Ventas en el panel privado
 
-El dashboard incluye ventas manuales por **UTVM** o **Centro de Ixmiquilpan**, con precio base de **$30 MXN** y costo aproximado de **$9.95**. Calcula ingresos, costo de preparación y utilidad estimada antes de otros gastos y cortesías. No convierte tarjetas raspadas en ventas ni inventa un historial anterior. Registrar una venta tampoco autoriza todavía un intento de juego: la validación de compra sigue pendiente.
+El dashboard incluye ventas manuales por **UTVM** o **Centro de Ixmiquilpan**, con precio base de **$30 MXN** y costo aproximado de **$9.95**. Calcula ingresos, costo de preparación y utilidad estimada antes de otros gastos y cortesías. No convierte tarjetas raspadas en ventas ni inventa un historial anterior. Registrar una venta genera un pase por café, recuperable desde **Ver QR**. Anular la venta bloquea sus pases pendientes y conserva premios ya emitidos. Las ventas históricas no reciben pases retroactivos.
 
 La gráfica y el mapa comparten filtros de 7, 30 y 90 días. Los importes se guardan en centavos enteros, cada venta conserva su precio/costo original, los reintentos usan una clave idempotente y las anulaciones mantienen el registro y corrigen los acumulados de su fecha original. Estas acciones solo funcionan con una sesión privada válida.
 
@@ -55,5 +55,7 @@ Para comprobar la celebración en un teléfono sin sortear ni gastar premios, ab
 ## Diseño y recursos
 
 Instrument Serif y DM Sans se sirven localmente. Lucide aporta los iconos. La fotografía del café, su fondo, vaso abierto, tapa, granos y bola de papel se generaron para esta marca y se comprimieron en WebP; las imágenes independientes conservan transparencia real. El grano visual es una textura procedural pequeña. No se usan componentes de pago ni grabaciones de terceros.
+
+El QR puede transformarse en una escena de vóxeles mediante un único canvas y una transición finita de 280 ms, sin motor 3D ni bucle en reposo. El QR plano comparte la paleta crema/café/caramelo/verde de la escena, mantiene cuatro módulos de margen y permite lectura y descarga. El apartado Canjes incluye un ejemplo visual y la creación de QR TEST válidos sin premio real. Los QR y la escena se dibujan localmente con las dependencias existentes.
 
 Referencias de diseño: Motion, 21st.dev, Skiper UI, Animmaster Lib y HorizonX. `DESIGN.md` documenta el material, composición y movimiento.
