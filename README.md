@@ -34,6 +34,8 @@ El dashboard incluye ventas manuales por **UTVM** o **Centro de Ixmiquilpan**, c
 
 La gráfica y el mapa comparten filtros de 7, 30 y 90 días. Los importes se guardan en centavos enteros, cada venta conserva su precio/costo original, los reintentos usan una clave idempotente y las anulaciones mantienen el registro y corrigen los acumulados de su fecha original. Estas acciones solo funcionan con una sesión privada válida.
 
+El panel comprueba ventas, reseñas y canjes de forma automática cada ocho segundos mientras está visible y conectado. Fusiona solo los apartados modificados, conserva los formularios y comentarios abiertos, se pausa en segundo plano y recupera la conexión con reintentos espaciados. Un pequeño evento de Firestore se confirma junto con cada cambio real; no se vuelven a leer todos los registros si no cambió nada. Sigue usando los planes gratuitos existentes, sujetos a sus cuotas. El café del encabezado sobresale en capas, las curvas comparten alineación y la meta diaria editable se guarda en el dispositivo sin alterar el sorteo.
+
 El fondo verde wave mueve dos capas mediante transformaciones; se pausa al ocultar la pestaña y respeta movimiento reducido. El mapa de actividad sigue siendo el canvas ligero 2D/3D. El mapa geográfico usa cinco trazos SVG locales derivados de [OpenStreetMap](https://www.openstreetmap.org/copyright), con datos y licencia ODbL en `public/maps/`. No carga mosaicos externos, servicios de pago ni claves API.
 
 ## Animación y accesibilidad

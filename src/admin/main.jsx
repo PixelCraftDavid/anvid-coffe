@@ -11,6 +11,7 @@ import '@fontsource/instrument-serif/400-italic.css';
 import './panel.css';
 import './dashboard.css';
 import './workspace.css';
+import './studio.css';
 
 function AmbientWave(){
   const root=useRef(null);

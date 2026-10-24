@@ -96,6 +96,7 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
   try{
     assert.equal((await call('GET')).status,401);
     assert.equal((await call('GET',undefined,'',`http://${host}`,'/api/admin?view=reviews')).status,401);
+    assert.equal((await call('GET',undefined,'',`http://${host}`,'/api/admin?view=live')).status,401);
     assert.equal((await call('POST',{action:'createTestCoupon'})).status,401);
     assert.equal((await call('POST',{action:'recordSale',requestId:randomUUID(),quantity:1,locationId:'utvm'})).status,401);
     assert.equal((await call('POST',{action:'voidSale',saleId:randomUUID()})).status,401);
@@ -105,6 +106,8 @@ test('API privada: bloquea anónimos y origen ajeno; permite sesión y la revoca
     const cookie=login.headers['Set-Cookie'].split(';')[0];const state=await call('GET',undefined,cookie);assert.equal(state.status,200);assert.equal(state.json.authenticated,true);assert.match(state.headers['Cache-Control'],/no-store/);
     const opinions=await call('GET',undefined,cookie,`http://${host}`,'/api/admin?view=reviews');assert.equal(opinions.status,200);assert.ok(Array.isArray(opinions.json.reviews));assert.ok(opinions.json.reviews.length<=20);assert.match(opinions.headers['Cache-Control'],/no-store/);assert.equal(typeof opinions.json.count,'number');
     assert.equal((await call('GET',undefined,cookie,`http://${host}`,'/api/admin?view=reviews&cursor=invalid')).status,400);
+    assert.equal((await call('GET',undefined,cookie,`http://${host}`,'/api/admin?view=live&since=invalid')).status,400);
+    const live=await call('GET',undefined,cookie,`http://${host}`,'/api/admin?view=live');assert.equal(live.status,200);assert.equal(live.json.requiresSnapshot,true);
     const qrTest=await call('POST',{action:'createTestCoupon'},cookie);assert.equal(qrTest.status,200);assert.equal(qrTest.json.coupon.test,true);
     const requestId=randomUUID();
     const sale=await call('POST',{action:'recordSale',requestId,quantity:1,locationId:'utvm'},cookie);assert.equal(sale.status,200);assert.equal(sale.json.sale.profitCents,2005);

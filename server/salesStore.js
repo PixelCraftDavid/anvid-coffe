@@ -2,6 +2,7 @@ import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
 import { campaignDay } from './coffeeStore.js';
 import { saleDefaults, saleLocations } from '../shared/salesConfig.js';
+import { markDashboardChange } from './dashboardLive.js';
 
 const emptyTotals = () => ({ quantity: 0, orders: 0, revenueCents: 0, costCents: 0, profitCents: 0 });
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -39,6 +40,7 @@ export async function recordSale(db, value, now = new Date()) {
     }
     transaction.create(saleRef, sale);
     transaction.set(dayRef, changeDay(daily.data(), sale, 1, createdAt));
+    markDashboardChange(transaction,db,'sales',now);
     return { sale, isNew: true };
   });
   return { sale: publicSale(result.sale, saleRef.id), isNew: result.isNew };
@@ -55,6 +57,7 @@ export async function voidSale(db, id, now = new Date()) {
     if (!daily.exists || daily.data().quantity < sale.quantity) throw new ServiceError(409, 'No pudimos reconciliar esta venta. Actualiza el panel.');
     transaction.update(ref, { voidedAt: stamp });
     transaction.set(dayRef, changeDay(daily.data(), sale, -1, stamp));
+    markDashboardChange(transaction,db,'sales',now);
     return { ...sale, voidedAt: stamp };
   });
   return { sale: publicSale(data, id) };

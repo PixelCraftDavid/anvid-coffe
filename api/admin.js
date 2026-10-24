@@ -1,7 +1,7 @@
 import { firebaseConnection, ServiceError } from '../server/firebase.js';
 import { requireSameOrigin } from '../server/session.js';
 import { adminSettings, checkPassword, createAdminSession, clearAdminSession, requireAdminSession, limitAdminLogin, saveAdminSession, verifyStoredSession, revokeAdminSession } from '../server/adminAuth.js';
-import { adminDashboard, couponPage, inspectCoupon, redeemCoupon } from '../server/redemption.js';
+import { adminDashboard, couponPage, inspectCoupon, redeemCoupon, dashboardChanges } from '../server/redemption.js';
 import { createTestCoupon } from '../server/testCoupons.js';
 import { recordSale, voidSale } from '../server/salesStore.js';
 import { listReviews } from '../server/coffeeStore.js';
@@ -39,6 +39,7 @@ export default async function handler(req,res) {
       if(url.searchParams.get('view')==='session')return send(200,{authenticated:true,expiresAt:session.expiresAt,local:!!process.env.FIRESTORE_EMULATOR_HOST&&!process.env.VERCEL});
       if(url.searchParams.get('view')==='coupons')return send(200,await couponPage(db,url.searchParams.get('cursor')));
       if(url.searchParams.get('view')==='reviews')return send(200,await listReviews(db,null,url.searchParams.get('cursor')));
+      if(url.searchParams.get('view')==='live')return send(200,await dashboardChanges(db,url.searchParams.get('since')));
       return send(200,await adminDashboard(db));
     }
     if(body.action==='inspect')return send(200,{coupon:await inspectCoupon(db,body.code)});

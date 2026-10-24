@@ -2,6 +2,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { ServiceError } from './firebase.js';
 import { ensureActivityDay } from './activityStore.js';
+import { markDashboardChange } from './dashboardLive.js';
 
 const dayMs = 86400000;
 const offsetMs = 6 * 3600000;
@@ -50,8 +51,9 @@ export async function drawDailyCoupon(db, participant, { now = new Date(), rando
     transaction.set(activityRef,{day,count:FieldValue.increment(1),version:1,updatedAt:createdAt},{merge:true});
     // Creation precondition + read conflict protects the one global slot.
     if (won) transaction.create(dailyRef, { code, couponId: couponRef.id, wonAt: createdAt });
+    markDashboardChange(transaction,db,'coupons',now);
     return { coupon, isNew: true };
-  });
+  },{maxAttempts:10});
   return { coupon: publicCoupon(outcome.coupon), isNew: outcome.isNew, day, nextResetAt: nextReset(now) };
 }
 
@@ -74,6 +76,7 @@ export async function writeReview(db, participant, value, now = new Date()) {
     transaction.set(reviewRef, next);
     // Atomic increments avoid a shared read lock when many visitors review at once.
     transaction.set(statsRef, { count: FieldValue.increment(old ? 0 : 1), sum: FieldValue.increment(input.rating - (old?.rating || 0)) }, {merge:true});
+    markDashboardChange(transaction,db,'reviews',now);
     return next;
   });
   return { review: publicReview(review, participant, participant) };
